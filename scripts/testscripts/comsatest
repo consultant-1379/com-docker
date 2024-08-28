@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import re
+import time
+import sys
+
+from cirpa.utils.shellhelper import execute, call_as_user
+
+parser = argparse.ArgumentParser(description='Comsa test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--test-package', action="store", dest="testPackage", default=False, required=True)
+mandatoryArgs.add_argument('--suite', action="store", dest="suite", default=None, required=True)
+mandatoryArgs.add_argument('--target', action="store", dest="target", default=None, required=True)
+mandatoryArgs.add_argument('--cluster-size', action="store", dest="clusterSize", required=True)
+mandatoryArgs.add_argument('--sut-ip1', action="store", dest="sutIp1", default=False, required=True)
+
+args = parser.parse_args()
+def clusterCleanUpCommands():
+
+    retry = 0
+    # halt the created cluster
+    while (retry < 3):
+        retval = call_as_user("root", ["vagrant", "halt", "--force"])
+        if (retval > 0):
+            print ("Error: Cluster halt failed but process continue to destroy")
+            retry += 1
+        else:
+            break
+    # TODO: vagrant destroy command unable to destroy cdrom attached vm's
+    #      Need to verify with higher version of vagrant and vagrabt-libvirt
+    if args.target == "csm":
+        # detach the configdrive.iso from the controllers
+        retvalSc2 = call_as_user("root", ["virsh", "detach-disk", "_SC-2-2", "hda", "--current"])
+        retvalSc1 = call_as_user("root", ["virsh", "detach-disk", "_SC-2-1", "hda", "--current"])
+        if retvalSc2 > 0 or retvalSc1 > 0:
+            print ("Error: Detaching of configdrive.iso failed. Continuing to destroy vm's")
+
+    # destroy the created cluster
+    retry = 0
+    while (retry < 3):
+        retval = call_as_user("root", ["vagrant", "destroy", "--force"])
+        if (retval > 0):
+            print ("Error: Cluster removal failed")
+            retry += 1
+        else:
+            break
+    return retval
+
+# extract the test package
+print (execute(["tar", "xf", args.testPackage]))
+
+# create the cluster
+command = ["/start"]
+command += [args.target]
+command += [args.clusterSize]
+command += [args.suite]
+returnValue = call_as_user("root", command)
+call_as_user("root", ["source", "/collect_logs", args.target, args.sutIp1])
+if (returnValue > 0):
+    print ("Cluster preparation failed")
+    exit(returnValue)
+
+time.sleep(10)
+comsaverificationdir = "/src/comsa-verification/ft"
+os.chdir(comsaverificationdir)
+
+retval = call_as_user("root", ["./comsaRunTest.sh", args.suite])
+if (retval > 0):
+    print ("Comsa test suite execution failed")
+    clusterCleanUpCommands()
+    exit(retval)

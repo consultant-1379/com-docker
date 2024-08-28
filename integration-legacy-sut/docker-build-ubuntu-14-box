@@ -1,0 +1,15 @@
+#!/bin/bash
+
+IMAGE=$USER-vagrant-build-ubuntu-14-box
+CONTAINER_NAME=$IMAGE
+
+docker rm -f $CONTAINER_NAME
+docker rmi -f $IMAGE
+
+# Exit on error
+set -e
+
+CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+docker build -t $IMAGE build-ubuntu-14-box/
+docker run -itd --privileged --cap-add=ALL --device /dev/kvm:/dev/kvm:rw -v $CURRENT_DIR/boxes:/boxes --name $CONTAINER_NAME $IMAGE $@

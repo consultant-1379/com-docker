@@ -1,0 +1,164 @@
+#!/bin/bash
+#   This script downloads the dependecy packages into depPackages directory
+#
+#   The script will perform the following actions:
+#       1. Pick the latest version of components from artifactory using
+#          baseline confidence levels
+#       2. Download the packages from artifactory
+
+TARGET=$1
+SUITE=$2
+
+# Fetch version number of component based on confidence level
+function getCbaCLPackageVersion() {
+    componentName=$1
+    subComponentName=$2
+    condition=$3
+    xciUrl="https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba"
+    downloadUrl="${xciUrl}.${componentName}/${subComponentName}/latest?confidenceLevels=%5B${condition}=SUCCESS%5D"
+    version=$(curl -s "${downloadUrl}" | grep -oP 'version\":"\K[^"]*')
+
+    retValue=$?
+    if [ $retValue -ne 0 ]; then
+        echo "Failed to get ${subComponentName} component version"
+        exit 1
+    fi
+    echo "${version}"
+}
+
+# Download the package from proj-cba-dev-local artifactory
+function downloadPackage() {
+    version=$1
+    componentName=$2
+    subComponentName=$3
+    fileName=$4
+    artifactUrl="https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba"
+    downloadUrl="${artifactUrl}/${componentName}/${subComponentName}/${version}/${fileName}"
+    mkdir -p /depPackages
+    wget --quiet -P /depPackages/ --user ${ADMIN_USER} --password ${ADMIN_PASSWORD} ${downloadUrl}
+
+    retValue=$?
+    if [ $retValue -eq 0 ]; then
+        echo "Package ${fileName} downloaded successfully"
+    else
+        echo "Failed to download ${fileName} package"
+        exit 1
+    fi
+}
+
+
+# Download com-deps from proj-com-ci-local artifactory
+function downloadComDepsPackage() {
+    componentName=$1
+    fileName=$2
+    artifactUrl="https://arm.rnd.ki.sw.ericsson.se/eiffel/content/repositories/proj-com-ci-local/tools"
+    downloadUrl="${artifactUrl}/${componentName}/${fileName}"
+    mkdir -p /depPackages
+    wget --quiet -P /depPackages/ --user ${ADMIN_USER} --password ${ADMIN_PASSWORD} ${downloadUrl}
+    retValue=$?
+    if [ $retValue -eq 0 ]; then
+        echo "Package ${fileName} downloaded successfully"
+    else
+        echo "Failed to download ${fileName} package"
+        exit 1
+    fi
+}
+
+# Download com runtime and deployment packages from proj-cba-all artifactory
+function downloadComPackage() {
+    fromVersion=$1
+    artifactUrl="https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba"
+    mkdir -p /bfuPackages
+    runtimeFileName="com_x86_64-"$fromVersion"-runtime-sle-cxp9028493.tar.gz"
+    deploymentFileName="com_x86_64-"$fromVersion"-deployment-sle-cxp9028492.tar.gz"
+
+    downloadUrl="${artifactUrl}/com_x86_64/com_x86_64/${fromVersion}/${runtimeFileName}"
+    wget --quiet -P /bfuPackages/ --user ${ADMIN_USER} --password ${ADMIN_PASSWORD} ${downloadUrl}
+
+    retValue=$?
+    if [ $retValue -eq 0 ]; then
+        echo "Package ${runtimeFileName} downloaded successfully"
+    else
+        echo "Failed to download ${runtimeFileName} package"
+        exit 1
+    fi
+
+    downloadUrl="${artifactUrl}/com_x86_64/com_x86_64/${fromVersion}/${deploymentFileName}"
+    wget --quiet -P /bfuPackages/ --user ${ADMIN_USER} --password ${ADMIN_PASSWORD} ${downloadUrl}
+
+    retValue=$?
+    if [ $retValue -eq 0 ]; then
+        echo "Package ${deploymentFileName} downloaded successfully"
+    else
+        echo "Failed to download ${deploymentFileName} package"
+        exit 1
+    fi
+}
+
+
+if [ "$TARGET" == "legacy" ]; then
+    # download ldews packages
+    version=${ldews_version}
+    downloadPackage ${version} ldews ldews ldews-${version}-deployment-sle-cxp9020284.tar.gz
+    downloadPackage ${version} ldews ldews ldews-${version}-runtime-sle-cxp9020125.tar.gz
+
+    # download sec-la packages
+    version=$(getCbaCLPackageVersion sec sec-la cbaBaselineFunctionality)
+    downloadPackage ${version} sec sec-la sec-la-${version}-deployment-sle-cxp9026995.tar.gz
+    downloadPackage ${version} sec sec-la sec-la-${version}-runtime-sle-cxp9026994.tar.gz
+
+    # download sec-cert packages
+    version=$(getCbaCLPackageVersion sec sec-cert cbaBaselineFunctionality)
+    downloadPackage ${version} sec sec-cert sec-cert-${version}-deployment-sle-cxp9027892.tar.gz
+    downloadPackage ${version} sec sec-cert sec-cert-${version}-runtime-sle-cxp9027891.tar.gz
+
+    # download sec-acs packages
+    version=$(getCbaCLPackageVersion sec sec-acs cbaBaselineFunctionality)
+    downloadPackage ${version} sec sec-acs sec-acs-${version}-deployment-sle-cxp9026451.tar.gz
+    downloadPackage ${version} sec sec-acs sec-acs-${version}-runtime-sle-cxp9026450.tar.gz
+
+    # download sec-ldap packages
+    version=$(getCbaCLPackageVersion sec sec-ldap cbaBaselineFunctionality)
+    downloadPackage ${version} sec sec-ldap sec-ldap-${version}-deployment-sle-cxp9028982.tar.gz
+    downloadPackage ${version} sec sec-ldap sec-ldap-${version}-runtime-sle-cxp9028981.tar.gz
+
+    # download sec-secm packages
+    version=$(getCbaCLPackageVersion sec sec-secm cbaBaselineFunctionality)
+    downloadPackage ${version} sec sec-secm sec-secm-${version}-deployment-sle-cxp9028977.tar.gz
+    downloadPackage ${version} sec sec-secm sec-secm-${version}-runtime-sle-cxp9028976.tar.gz
+
+    # download sec-crypto packages
+    version=$(getCbaCLPackageVersion sec sec-crypto cbaBaselineFunctionality)
+    downloadPackage ${version} sec sec-crypto sec-crypto-${version}-deployment-sle-cxp9027896.tar.gz
+    downloadPackage ${version} sec sec-crypto sec-crypto-${version}-runtime-sle-cxp9027895.tar.gz
+fi
+
+if [[ ("$TARGET" != "lda") && ("$SUITE" != *"comsa"*) ]]; then
+    # download coremw_pm_producer
+    mkdir -p /depPackages/pmProducer
+    downloadComDepsPackage coremw_pm_producer coremw_pm_producer.tar.gz
+    tar -xzf /depPackages/coremw_pm_producer.tar.gz -C /depPackages/pmProducer
+
+    #download test_pm_producer for upgrade workshop testing
+    mkdir -p /depPackages/testPmProducer
+    downloadComDepsPackage test_pm_producer pm_producer_csm.tar.gz
+
+    #download dummy_package for upgrade workshop testing
+    mkdir -p /depPackages/dummyPackage
+    downloadComDepsPackage dummy_package DUMMY.tar.gz
+fi
+
+# download comsa_test_data
+mkdir -p /depPackages/comsaTestData
+downloadComDepsPackage comsa_test_data comsa_test_data.tar.gz
+tar -xzf /depPackages/comsa_test_data.tar.gz -C /depPackages/comsaTestData
+
+# download comsa_ntfsend_file
+mkdir -p /depPackages/comsaNtfSend
+downloadComDepsPackage comsa_test_data com-test-ntfsend.tar.gz
+tar -xzf /depPackages/com-test-ntfsend.tar.gz -C /depPackages/comsaNtfSend
+./create_comtestuser
+
+#scp sshd_config root@10.0.2.15:/etc/ssh/.
+#scp sshd_config root@10.0.2.16:/etc/ssh/.
+

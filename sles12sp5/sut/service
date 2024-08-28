@@ -1,0 +1,64 @@
+#!/bin/bash
+
+
+getLdapPid(){
+        PID=$(ps -aux | grep ldap | grep -v "grep" | grep -v "/service" | awk '{print $2}' | head -1)
+        echo ${PID:-0}
+}
+
+startLdap(){
+        if [ "$(isLdapRunning)" == "running" ]
+        then
+                return
+        fi
+
+        # start the ldap server
+        /usr/lib/openldap/slapd -h ldap:/// -f /etc/openldap/slapd.conf -u root -g root -o slp=on &
+}
+
+stopLdap(){
+        if [ "$(isLdapRunning)" == "running" ]
+        then
+                pid=$(getLdapPid)
+                kill -9 $pid &> /dev/null
+                wait $pid &> /dev/null
+        fi
+}
+
+isLdapRunning(){
+
+        if (( $(getLdapPid) > 0 ))
+        then
+                echo "running"
+        else
+                echo "dead"
+        fi
+
+
+}
+
+
+if [[ "$2" == "status" && "$1" == "ldap" ]]
+then
+        echo "ldap is $(isLdapRunning)"
+fi
+
+
+if [[ "$2" == "start" && "$1" == "ldap" ]]
+then
+        startLdap
+        echo "ldap is $(isLdapRunning)"
+fi
+
+if [[ "$2" == "restart" && "$1" == "ldap" ]]
+then
+        stopLdap
+        startLdap
+        echo "ldap is $(isLdapRunning)"
+fi
+
+if [[ "$2" == "stop" && "$1" == "ldap" ]]
+then
+        stopLdap
+        echo "ldap is $(isLdapRunning)"
+fi

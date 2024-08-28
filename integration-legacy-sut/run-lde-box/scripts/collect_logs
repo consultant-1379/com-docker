@@ -1,0 +1,80 @@
+#!/bin/bash -e
+
+#   This script creates and adds the authorized_keys
+#   to both controllers in the cluster
+
+#Traget can be legacy,csm or lda
+TARGET=$1
+NODE_IP=$2
+echo -e "\nCollecting /var/log/messages from $NODE_IP target node"
+
+if [ $# -ne 2 ] ; then
+   echo "Error: Invalid number of arguments passed"
+   exit 1
+fi
+
+command_executor()
+{
+IP=$1
+CMD=$2
+expect <<END
+set timeout 20
+set password rootroot
+spawn ssh root@$IP "$CMD"
+expect {
+    "Password:" {
+        send "\$password\r"
+    }
+
+    "yes/no)?" {
+        send "yes\r"
+        set timeout -1
+        expect {
+            "Password:" {
+                send "\$password\r"
+            }
+            timemout {
+                exit 1
+            }
+            eof {
+                exit 1
+            }
+        }
+    }
+
+    timeout {
+        exit 1
+    }
+    eof {
+        exit 0
+    }
+}
+expect {
+    eof { exit 0 }
+    timeout { exit 1 }
+}
+END
+
+}
+
+# Crete ssh directory and add keys if target is csm or legacy
+if [ "$TARGET" = "csm" ] || [ "$TARGET" = "legacy" ]; then
+    # Creation of SSH directory in node1
+    CMD="mkdir -p ~/.ssh"
+    command_executor "$NODE_IP" "$CMD"
+
+    # Adding authorized key in node1
+    echo "Adding ssh keys"
+    CMD="echo '$(<~/.ssh/id_rsa.pub)' > ~/.ssh/authorized_keys"
+    command_executor "$NODE_IP" "$CMD"
+fi
+
+#copy logs to local host
+scp -o "StrictHostKeyChecking no" -r root@$NODE_IP:/var/log/messages/ /messages
+
+# remove keys if  target is csm or legacy
+if [ "$TARGET" = "csm" ] || [ "$TARGET" = "legacy" ]; then
+    # remove keys
+    echo "Removing added ssh keys"
+    ssh root@${NODE_IP} "rm -rf /root/.ssh" || true
+fi

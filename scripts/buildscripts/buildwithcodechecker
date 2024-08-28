@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+
+from cmakeconfiguration import CMakeConfiguration
+
+# build classes
+
+from buildcommaincodechecker import BuildComMainCodeChecker
+from buildcbacomcodechecker import BuildCbaComCodeChecker
+from buildmafmaincodechecker import BuildMafMainCodeChecker
+
+parser = argparse.ArgumentParser(description='Build options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--commit', action="store", dest="commit", default=False, required=True)
+mandatoryArgs.add_argument('--repo', action="store", dest="repo", default=False, required=True)
+mandatoryArgs.add_argument('--mirror-path', action="store", dest="mirrorpath", default=False, required=True, help="The path to where all the mirrored repositories are located")
+mandatoryArgs.add_argument('--username', action="store", dest="username", default=False, required=True)
+mandatoryArgs.add_argument('--password', action="store", dest="password", default=False, required=True)
+
+# this makes it possible to select between the different build types e.g. build --repo com --build-type cba
+mandatoryArgs.add_argument('--build-type', action="store", dest="buildtype", required=True)
+
+# optional
+parser.add_argument('-j', '--make-workers', action="store", dest="makeWorkers", default="10")
+parser.add_argument('--com-version', action="store", dest="comVersion")
+parser.add_argument('--base-code', action="store", dest="baseCode")
+parser.add_argument('--build-dir', action="store", dest="builddir", default="/build")
+parser.add_argument('--local-src', action="store", dest="localsrc")
+parser.add_argument('--cmake-config', nargs='*', dest="configuration")
+parser.add_argument('--gerrit-project', action="store", dest="gerritProject", default=False)
+parser.add_argument('--gerrit-patchset', action="store", dest="patchset", default=False)
+parser.add_argument('--branch', action="store", dest="branch", default=False, help="Branch to checkout after repository clone")
+parser.add_argument('--gerrit-trigger', action="store", dest="gerritTrigger", choices=['trigger','review','push'])
+parser.add_argument('--gerrit-branch', action="store", dest="gerritBranch", default=False, help="Gerrit branch of submodule where new commit is delivered")
+parser.add_argument('--com-branch', action="store", dest="comBranch", default=False, help="CBA-COM branch to push submodule changes")
+parser.add_argument('--vault-pass', action="store", dest="vaultPass", required=False)
+parser.add_argument('--maf-latest', action="store_true", dest="mafLatest")
+parser.add_argument('--test', action="store", dest="comsaTest")
+
+args = parser.parse_args()
+
+
+if args.configuration:
+    cmake = CMakeConfiguration(args.configuration)
+else:
+    cmake = CMakeConfiguration([])
+
+if args.comVersion:
+    cmake.add("comversion", args.comVersion)
+
+# main execution
+
+class BuildSelector:
+
+    buildClasses = {
+        "cba": BuildCbaComCodeChecker,
+        "commain": BuildComMainCodeChecker,
+        "mafmain": BuildMafMainCodeChecker,
+    }
+
+    def selectBuild(self, buildName, args, configurations):
+        try:
+            return self.buildClasses[buildName.lower()](args, configurations)
+        except KeyError:
+            print("Error: Build name: {} does not exist".format(buildName))
+            sys.exit(1) # just die
+
+
+
+selector = BuildSelector()
+
+build = selector.selectBuild(args.buildtype, args, cmake)
+
+returnValue = build.build()
+sys.exit(returnValue)

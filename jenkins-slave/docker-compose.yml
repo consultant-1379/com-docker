@@ -1,0 +1,127 @@
+#compose file for the Jenkins Slave service
+# JENKINS_MASTER and JENKINS_PORT should be set in the shell as
+# environment variables where the docker-compose command is called
+
+version: '2'
+
+services:
+  dev-slave-build:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "build" --vault-pass /root/.vault_pass
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-functiontest:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "functiontest" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-integration:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "integration" --vault-pass /root/.vault_pass
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-mirror:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "mirror" --vault-pass /root/.vault_pass
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-generictest:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "generictest" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-releasenotes:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "releasenotes" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-version:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+      - "/repo/jenkins/local-mirrors/:/mirrors/:ro"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "version" --vault-pass /root/.vault_pass
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-cm-core:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "cm-core-slave" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-local-mirror:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+      - "/repo/jenkins/local-mirrors/:/mirrors/:ro"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "local-mirror" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-integrationlda:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "integrationlda" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+
+  dev-slave-functiontest-valgrind:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "functiontest-valgrind" --vault-pass /root/.vault_pass 
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}
+  dev-slave-fm-core:
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "~/.vault_pass:/root/.vault_pass"
+    entrypoint: connect-slave.py --url "https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/" --label "fm-core-slave" --vault-pass /root/.vault_pass
+    environment:
+      - CONSULE_SERVER=${CONSULE_SERVER}
+      - HOST=${HOST}

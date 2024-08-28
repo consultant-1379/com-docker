@@ -1,0 +1,22 @@
+{
+   "DocIn": "ARTIFACT_PATH",
+   "object_name": "DOCUMENT_TITLE",
+   "number-type" : "registration",
+   "decimal-class" : "19010",
+   "individual-number" : "CXP_NUMBER/7",
+   "allow-new-version" : true,
+   "folder-id": "0b004cffc523017b",
+   "format": "TAR_GZIPV1",
+   "repository": "eridoca",
+   "r_object_type": "eri_wg_doc",
+   "language_code": "x",
+   "lang" : "Ux",
+   "keywords": [ ],
+   "eri_doc_responsible" : "BDGSGH",
+   "eri_subject_responsible" : "BDGSGH",
+   "eri_category":"Research & Development",
+   "eri_sub_category":"System & Application Software Development",
+   "eri_document_type":"Code Document",
+   "eri_conf_class": "Ericsson Internal",
+   "eri_audience": "Workgroup Members - Searchable"
+}

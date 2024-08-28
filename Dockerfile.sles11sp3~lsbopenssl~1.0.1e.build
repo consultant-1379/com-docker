@@ -1,0 +1,250 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/baseimages/sles:11sp3
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# Environment variable required to enable UTF-8 encoding
+ENV LANG=en_US.UTF-8
+
+# Clean Zypper Repositories
+RUN rm -rf /etc/zypp/repos.d/*
+
+# Add Zypper Repositories
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLE11-SP3-SDK-Pool/ SLE11-SP3-SDK-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLE11-SP3-SDK-Updates/ SLE11-SP3-SDK-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLES11-SP3-Updates/ SLES11-SP3-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLES11-SP3-Pool/ SLES11-SP3-Pool
+
+# Refresh repositories
+RUN zypper lr
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# Image Utility Tools
+RUN zypper install -y vim
+
+# Tools used at image creation time
+RUN zypper install -y wget
+
+# Compilation Tools
+RUN zypper install -y tar
+RUN zypper install -y make
+RUN zypper install -y gcc
+RUN zypper install -y gcc-c++
+RUN zypper install -y autoconf
+
+# COM Build Dependencies
+RUN zypper install -y libopenssl-devel
+RUN zypper install -y openldap2-devel
+RUN zypper install -y net-snmp-devel
+RUN zypper install -y fuse-devel
+RUN zypper install -y ncurses-devel
+
+# This package includes the validation for rpm spec
+RUN zypper install -y rpmlint
+
+# FT Dependencies
+RUN zypper install -y java-1_7_0-ibm-devel
+
+# Tools used by the COM Build System
+RUN zypper install -y zip
+RUN zypper install -y patch
+RUN zypper install -y git
+
+# CppCheck result parsing dependencies
+RUN zypper install -y libxslt
+
+# Documentation regeneration dependencies
+RUN zypper install -y doxygen
+
+# Tools needed for LSB build
+RUN zypper install -y lsb
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# Maven 3.3.9 and its dependencies
+RUN wget -P /tmp/src/ http://archive.apache.org/dist/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz && \
+    rm -rf /tmp/src
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+
+# LTTNG dependencies
+
+# Download, Compile and Install Python 2.7.10
+# Default version of Python in SLES 11 SP3 is 2.6.9. Compilation of lttng-ust requires 2.7+
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.python.org/ftp/python/2.7.10/Python-2.7.10.tgz && \
+    cd /tmp/src/ && \
+    tar xf Python-2.7.10.tgz && \
+    cd /tmp/src/Python-2.7.10 && \
+    ./configure --prefix=/usr/ && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Userspace-rcu (liburcu) 0.8.4
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.lttng.org/files/urcu/userspace-rcu-0.8.4.tar.bz2 && \
+    cd /tmp/src/ && \
+    tar xf userspace-rcu-0.8.4.tar.bz2 && \
+    cd /tmp/src/userspace-rcu-0.8.4 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# lttng-ust 2.4.0
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://lttng.org/files/lttng-ust/lttng-ust-2.4.0.tar.bz2 && \
+    cd /tmp/src/ && \
+    tar xf lttng-ust-2.4.0.tar.bz2 && \
+    cd /tmp/src/lttng-ust-2.4.0 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install CMake 2.8.5
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ --no-check-certificate https://cmake.org/files/v2.8/cmake-2.8.5.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cmake-2.8.5.tar.gz && \
+    cd /tmp/src/cmake-2.8.5 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Astyle 2.05.1
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ http://sourceforge.net/projects/astyle/files/astyle/astyle%202.05.1/astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/astyle/build/gcc && \
+    make -j && \
+    install /tmp/src/astyle/build/gcc/bin/astyle /usr/bin/ && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install CppCheck 1.46
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ http://sourceforge.net/projects/cppcheck/files/cppcheck/1.46/cppcheck-1.46.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cppcheck-1.46.tar.gz && \
+    cd /tmp/src/cppcheck-1.46/ && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# LSB Environment Setup
+# Download, Compile and Install Curl 7.45
+RUN zypper install -y curl
+RUN zypper install -y libcurl-devel
+
+# Download and install GTest 1.6
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://github.com/google/googletest/archive/release-1.6.0.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf release-1.6.0 && \
+    cd /tmp/src/googletest-release-1.6.0 && \
+    cmake -DBUILD_SHARED_LIBS=ON . && \
+    make -j && \
+    cp -a include/gtest /usr/include && \
+    cp -a libgtest_main.so libgtest.so /usr/lib/ && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Git 1.8.5.6
+# Git 1.7.4, the version in SLES11 zypper repo, does not support the -C flag which is needed for the build scripts to work
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.kernel.org/pub/software/scm/git/git-1.8.5.6.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf git-1.8.5.6.tar.gz && \
+    cd /tmp/src/git-1.8.5.6/ && \
+    /tmp/src/git-1.8.5.6/configure shared && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download and install LSB compiler
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ http://ftp.linuxfoundation.org/pub/lsb/bundles/released-4.0.0/sdk/lsb-sdk-4.1.8-1.x86_64.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf lsb-sdk-4.1.8-1.x86_64.tar.gz && \
+    cd /tmp/src/lsb-sdk/ && \
+    rpm --quiet --nodeps --replacepkgs -i /tmp/src/lsb-sdk/*.rpm && \
+    rm -rf /tmp/src
+
+# Download and install openssl-1.0.1e
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.openssl.org/source/old/1.0.1/openssl-1.0.1e.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf openssl-1.0.1e.tar.gz && \
+    cd /tmp/src/openssl-1.0.1e/ && \
+    /tmp/src/openssl-1.0.1e/config --prefix=/usr --openssldir=/usr/local/openssl shared && \
+    make && \
+    make install && \
+    rm -rf /tmp/src
+
+# Modify one of the lsb header files to be able to build
+RUN sed -i -e 's/50/40/g' /opt/lsb/include/ifaddrs.h
+
+# The LSB compiler cannot use the 3PP libraries if they are stored in the default folder /usr/lib64
+# As workaround, they are copied to another folder
+RUN mkdir /cmake_3ppdir && \
+    mkdir /cmake_3ppdir/lib64 && \
+    mkdir /cmake_3ppdir/include && \
+    cp /usr/lib64/*snmp*.so.15.1.2 /cmake_3ppdir/lib64 && \
+    cp /usr/lib64/libcrypto.so.1.0.0 /cmake_3ppdir/lib64 && \
+    cp /usr/lib64/libssl.so.1.0.0 /cmake_3ppdir/lib64 && \
+    cp -r /usr/include/net-snmp /cmake_3ppdir/include/ && \
+    cp -r /usr/include/openssl /cmake_3ppdir/include/ && \
+    ln -s /cmake_3ppdir/lib64/libnetsnmp.so.15.1.2 /cmake_3ppdir/lib64/libnetsnmp.so && \
+    ln -s /cmake_3ppdir/lib64/libnetsnmpagent.so.15.1.2 /cmake_3ppdir/lib64/libnetsnmpagent.so && \
+    ln -s /cmake_3ppdir/lib64/libnetsnmphelpers.so.15.1.2 /cmake_3ppdir/lib64/libnetsnmphelpers.so && \
+    ln -s /cmake_3ppdir/lib64/libnetsnmpmibs.so.15.1.2 /cmake_3ppdir/lib64/libnetsnmpmibs.so && \
+    ln -s /cmake_3ppdir/lib64/libnetsnmptrapd.so.15.1.2 /cmake_3ppdir/lib64/libnetsnmptrapd.so && \
+    ln -s /cmake_3ppdir/lib64/libsnmp.so.15.1.2 /cmake_3ppdir/lib64/libsnmp.so && \
+    ln -s /cmake_3ppdir/lib64/libcrypto.so.1.0.0 /cmake_3ppdir/lib64/libcrypto.so && \
+    ln -s /cmake_3ppdir/lib64/libssl.so.1.0.0 /cmake_3ppdir/lib64/libssl.so
+
+#set environment variables for the LSB compiler
+ENV CC /opt/lsb/bin/lsbcc
+ENV CXX /opt/lsb/bin/lsbc++
+
+# install function test python dependecies
+ADD https://bootstrap.pypa.io/get-pip.py /
+RUN python /get-pip.py
+
+# copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+
+# install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+RUN pip install /cirpa-utils
+
+# install pyyaml
+RUN pip install pyyaml

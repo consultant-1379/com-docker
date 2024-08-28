@@ -1,0 +1,37 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+RUN apt-get update
+
+# Installation of dependencies for the different tools
+RUN apt-get install -y \
+            wget \
+            curl \
+            bash-completion \
+            python \
+            python-yaml \
+            curl \
+            gettext-base \
+            python-crypto \
+            python-paramiko \
+            perl \
+            libcgi-pm-perl \
+            debconf \
+            automake
+
+# copy scripts
+COPY scripts/eridocscripts /usr/src/scripts/eridocscripts
+COPY cirpa/cirpa-utils /cirpa-utils
+
+# install the modules
+RUN bash /usr/src/scripts/eridocscripts/install.sh && \
+    apt-get install -y python-pip && \
+    pip install pip==20.3.3
+RUN pip install /cirpa-utils && \
+    apt-get purge -y python-pip && \
+    apt-get clean -y && apt-get autoremove -y

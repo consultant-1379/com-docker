@@ -1,0 +1,35 @@
+---
+# Building names for slave containers in format of <hw-type>_<ip address of hw-type>
+- name: Generate container names
+  set_fact:
+    container_name: '{{ hardware_type }}_{{ item }}'
+  with_items:
+    - '{{ hardware_list }}'
+  register: container_names
+
+# Building list for above generated slave containers name
+- name: Collect the slave container names in a list
+  set_fact:
+    container_name_list: '{{ container_names.results | map(attribute="ansible_facts.container_name") | list }}'
+
+# Starts the slave containers
+- name: Instantiating slave containers
+  docker_container:
+    name: '{{ item[0] }}'
+    image: armdocker.rnd.ericsson.se/cba-com/jenkins-slave:latest
+    pull: yes
+    state: started
+    recreate: no
+    entrypoint: connect-slave.py --url '{{ jenkins_url }}' --label '{{ label }}' --vault-pass /root/.vault_pass
+    volumes:
+      - '/home/{{ ansible_user }}/.vault_pass:/root/.vault_pass'
+      - /var/run/docker.sock:/var/run/docker.sock
+    env:
+      SUT: '{{ item[1] }}'
+      HOST: "{{ ansible_host.split('.')[0] }}"
+  with_nested:
+    - '{{ container_name_list }}'
+    - '{{ hardware_list }}'
+  when: item[1] in item[0]
+
+...

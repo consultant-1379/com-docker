@@ -1,0 +1,40 @@
+#!/bin/bash
+set -xe
+
+export LDE_VERSION=$1
+export CLUSTER_SIZE=$2
+
+ARTIFACTORY_URL=https://arm.rnd.ki.sw.ericsson.se/artifactory/simple/proj-cba-all/com/ericsson/cba/
+PROJECT_URL=ldews/ldews/$LDE_VERSION/ldews-$LDE_VERSION-iso-sle-ana90139.iso
+export LDE_ISO_URL=$ARTIFACTORY_URL$PROJECT_URL
+# Start libvirt
+$PACKER_DIR/start-libvirt
+
+WORKDIR=$PACKER_DIR/work
+DOWNLOADS=$PACKER_DIR/downloads
+mkdir -p $WORKDIR
+mkdir -p $DOWNLOADS
+
+# Downlaod lde
+echo "Downloading $LDE_ISO_URL"
+wget --quiet -O $DOWNLOADS/ldews.iso \
+     --user $ADMIN_USER \
+     --password $ADMIN_PASSWORD \
+     $LDE_ISO_URL
+
+# Build Vagrant box using packer
+cd $PACKER_DIR
+#TODO: Investigate why packer logs is consuming too much space
+#export PACKER_LOG=1
+export PACKER_KEY_INTERVAL=10ms
+PACKER_FILE="packer-ldews-2VM.json"
+VMS="2VM"
+
+if [ "$CLUSTER_SIZE" == "2+2" ]; then
+    PACKER_FILE="packer-ldews-4VM.json"
+    VMS="4VM"
+fi
+packer build -only qemu $PACKER_FILE
+
+mv /ldews.box ldews-$LDE_VERSION-$VMS.box
+$PACKER_DIR/upload-box ldews-$LDE_VERSION-$VMS.box $LDE_VERSION

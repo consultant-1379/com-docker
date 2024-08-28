@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+
+from cmakeconfiguration import CMakeConfiguration
+
+# build classes
+
+from buildcommain import BuildComMain
+from buildcbacom import BuildCbaCom
+from buildfmcore import BuildFmCore
+
+from updatesubmodule import UpdateSubModule
+from updatemvn import UpdateMvnRepository
+
+parser = argparse.ArgumentParser(description='Build options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--commit', action="store", dest="commit", default=False, required=True)
+mandatoryArgs.add_argument('--repo', action="store", dest="repo", default=False, required=True)
+mandatoryArgs.add_argument('--mirror-path', action="store", dest="mirrorpath", default=False, required=True, help="The path to where all the mirrored repositories are located")
+
+# this makes it possible to select between the different build types e.g. build --repo com --build-type cba
+mandatoryArgs.add_argument('--build-type', action="store", dest="buildtype", required=True)
+
+# optional
+parser.add_argument('-j', '--make-workers', action="store", dest="makeworkers", default="10")
+parser.add_argument('--com-version', action="store", dest="comVersion")
+parser.add_argument('--fmcore-version', action="store", dest="fmcoreVersion")
+parser.add_argument('--build-dir', action="store", dest="builddir", default="/build")
+parser.add_argument('--local-src', action="store", dest="localsrc")
+parser.add_argument('--cmake-config', nargs='*', dest="configuration")
+parser.add_argument('--gerrit-project', action="store", dest="gerritProject", default=False)
+parser.add_argument('--gerrit-patchset', action="store", dest="patchset", default=False)
+parser.add_argument('--branch', action="store", dest="branch", default=False, help="Branch to checkout after repository clone")
+parser.add_argument('--gerrit-trigger', action="store", dest="gerritTrigger", choices=['trigger','review','push'])
+parser.add_argument('--gerrit-branch', action="store", dest="gerritBranch", default=False, help="Gerrit branch of submodule where new commit is delivered")
+parser.add_argument('--com-branch', action="store", dest="comBranch", default=False, help="CBA-COM branch to push submodule changes")
+parser.add_argument('--vault-pass', action="store", dest="vaultPass", required=False)
+parser.add_argument('--use-verbose', action="store_true", dest="useVerbose")
+parser.add_argument('--maf-latest', action="store_true", dest="mafLatest")
+parser.add_argument('--test', action="store", dest="comsaTest")
+
+args = parser.parse_args()
+
+if args.configuration:
+    cmake = CMakeConfiguration(args.configuration)
+else:
+    cmake = CMakeConfiguration([])
+
+if args.comVersion:
+    cmake.add("comversion", args.comVersion)
+
+if args.fmcoreVersion:
+    cmake.add("fmcoreversion", args.fmcoreVersion)
+
+# main execution
+
+class BuildSelector:
+
+    buildClasses = {
+        "cba": BuildCbaCom,
+        "cbaptoff": BuildCbaCom,
+        "cbavalgrind": BuildCbaCom,
+        "commain": BuildComMain,
+        "commaincoverage": BuildComMain,
+        "commainvalgrind": BuildComMain,
+        "commainlsb": BuildComMain,
+        "commainrcsarm": BuildComMain,
+        "commainrcsi686": BuildComMain,
+        "commainrcsppc": BuildComMain,
+        "commainrcsx64": BuildComMain,
+        "commainrcsaarch64": BuildComMain,
+        "commainrcsaudit": BuildCbaCom,
+        "comscalabilitynoaccessmgmt": BuildComMain,
+        "comscalabilitynocli": BuildComMain,
+        "comscalabilitynofilem": BuildComMain,
+        "comscalabilitynofm": BuildComMain,
+        "comscalabilitynonc": BuildComMain,
+        "comscalabilitynons": BuildComMain,
+        "comscalabilitynopassword": BuildComMain,
+        "comscalabilitynopm": BuildComMain,
+        "comscalabilitynosubshell": BuildComMain,
+        "comscalabilitynotlsproxy": BuildComMain,
+        "fmcore": BuildFmCore,
+        "fmcorecoverage": BuildFmCore,
+        "fmcorevalgrind": BuildFmCore,
+        "updatemaven": UpdateMvnRepository,
+        "updatesubmodule": UpdateSubModule,
+    }
+
+    def selectBuild(self, buildName, args, configurations):
+        try:
+            return self.buildClasses[buildName.lower()](args, configurations)
+        except KeyError:
+            print "build name: " + buildName + " does not exist"
+            sys.exit(1) # just die
+
+
+
+selector = BuildSelector()
+
+build = selector.selectBuild(args.buildtype, args, cmake)
+
+returnValue = build.build()
+sys.exit(returnValue)

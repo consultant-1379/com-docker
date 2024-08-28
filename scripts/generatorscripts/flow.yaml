@@ -1,0 +1,83 @@
+# git_collector -> mhweb_collector
+- git_collector_mhweb_commain
+
+- git_collector_mhweb_comsa
+
+- git_collector_mhweb_com-vsftpd
+
+- mhweb_tr_collector:
+    depends_on:
+    - git_collector_mhweb_commain
+    - git_collector_mhweb_comsa
+    - git_collector_mhweb_com-vsftpd
+
+# git_collector -> jira_collector
+- git_collector_jira_commain
+
+- git_collector_jira_comsa
+
+- git_collector_jira_com-vsftpd
+
+- jira_collector:
+    depends_on:
+    - git_collector_jira_commain
+    - git_collector_jira_comsa
+    - git_collector_jira_com-vsftpd
+
+# git_collector -> fpt_collector
+- git_collector_mr_commain
+
+- git_collector_mr_comsa
+
+- git_collector_mr_com-vsftpd
+
+- git_collector_fptmr_commain
+
+- git_collector_fptmr_comsa
+
+- git_collector_fptmr_com-vsftpd
+
+- git_collector_fpt_commain
+
+- git_collector_fpt_comsa
+
+- git_collector_fpt_com-vsftpd
+
+- fpt_collector:
+    depends_on:
+    - git_collector_mr_commain
+    - git_collector_mr_comsa
+    - git_collector_mr_com-vsftpd
+    - git_collector_fptmr_commain
+    - git_collector_fptmr_comsa
+    - git_collector_fptmr_com-vsftpd
+    - git_collector_fpt_commain
+    - git_collector_fpt_comsa
+    - git_collector_fpt_com-vsftpd
+
+# git_collector -> jira_collector_nbc
+- git_collector_nbc_commain
+
+- git_collector_nbc_comsa
+
+- git_collector_nbc_com-vsftpd
+
+- jira_collector_nbc:
+    depends_on:
+    - git_collector_nbc_commain
+    - git_collector_nbc_comsa
+    - git_collector_nbc_com-vsftpd
+
+- json_import_previous_releases
+
+- accumulative_collector:
+    depends_on:
+      - json_import_previous_releases
+      - mhweb_tr_collector
+      - jira_collector
+      - fpt_collector
+      - jira_collector_nbc
+
+- json_generator_save_releases:
+    depends_on:
+      - accumulative_collector

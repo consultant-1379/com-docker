@@ -1,0 +1,14 @@
+{
+  "DocTitle": "DOCUMENT_TITLE",
+  "DocNo": "DOCUMENT_NUMBER",
+  "DocIn": "ARTIFACT_PATH",
+  "Rev": "NEW_DOC_VERSION",
+  "FormalChange": "N",
+  "AccessCode": "G",
+  "Format": "TAR_GZIPV1",
+  "PaperForm": "UNFORM",
+  "DocResp": "BDGSGH",
+  "SubjResp": "BDGSGH",
+  "DocStatus": "PREL",
+  "Lang": "X"
+}

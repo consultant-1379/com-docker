@@ -1,0 +1,115 @@
+#!/bin/bash -e
+#   This script creates a cluster using vagrant and installs required cba stack
+#
+#   Prerequisites:
+#       *   LDE box with user input version must exist in artifactory
+#
+#   The script will perform the following actions:
+#       1.  Create the cluster
+#       2.  Source DX Tools
+#       3.  Install required cba stack
+#
+#   Input arguments for running this script:
+#       1. CLUSTER _SIZE
+#       2. From Version file path
+#       3. To Version file path
+
+CLUSTER_SIZE=$1
+echo "Cluster size is ${CLUSTER_SIZE}"
+
+# Add username and password to ArtifactManager.cfg file
+sed -i 's/.*username =.*/username = '$ADMIN_USER'/' $AM_WORKSPACE/ArtifactManager.cfg
+sed -i 's/.*password =.*/password = '$ADMIN_PASSWORD'/' $AM_WORKSPACE/ArtifactManager.cfg
+
+# Start libvirt
+start-libvirt
+
+VMS="2VM"
+
+# validate function to verify if packages dowloaded correctly using checksum
+function curlDownloadValidate() {
+  PACKAGE_NAME=$1
+  MD5_FILENAME=$2
+  MD5_PASSED=$(cat $2)
+  MD5_GENERATED=$(md5sum $1 | cut -d ' ' -f 1)
+
+  if [ "$MD5_PASSED" == "$MD5_GENERATED" ]; then
+      echo "Package md5sum validation successful"
+  else
+      echo "Error: Package md5sum validation failed"
+      exit 1
+  fi
+}
+
+# Create boxes directory
+mkdir -p /boxes
+
+if [ "$CLUSTER_SIZE" == "2+2" ]; then
+    VMS="4VM"
+    curl --silent -o /boxes/payload-node.box https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/payload-node.box
+    curl --silent -o /boxes/payload-node.box.md5 https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/payload-node.box.md5
+    curlDownloadValidate /boxes/payload-node.box /boxes/payload-node.box.md5
+
+    # Add the payload box to the local vagrant repository
+    set +e
+    vagrant box add /boxes/payload-node.box --name "payload"
+    set -e
+    ping 10.0.2.17 > /dev/null &
+    ping 10.0.2.18 > /dev/null &
+fi
+
+echo "Creation of cluster in progress..."
+
+# Updating VERSION_FILE.xml for running it on legacy way
+declare -x VERSION_FILE=$2
+echo "From Version File Path: ${VERSION_FILE}"
+source $VERSION_FILE
+
+BOX_NAME="ldews-$LDE_BASE_VERSION-$VMS.box"
+curl --silent -o /boxes/ldews-$LDE_BASE_VERSION-$VMS.box https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/$LDE_BASE_VERSION/$BOX_NAME
+curl --silent -o /boxes/ldews-$LDE_BASE_VERSION-$VMS.box.md5 https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/$LDE_BASE_VERSION/$BOX_NAME.md5
+curlDownloadValidate /boxes/ldews-$LDE_BASE_VERSION-$VMS.box /boxes/ldews-$LDE_BASE_VERSION-$VMS.box.md5
+
+# Add the Vagrant box to the local vagrant repository
+set +e
+vagrant box add /boxes/$BOX_NAME --name "ldews"
+set -e
+
+# For some reason Vagrant doesn't understand that the VM:s has claimed an IP
+# even though they are up and running. But when you ping the nodes, Vagrant
+# understand it. This is a workaround.
+ping 10.0.2.15 > /dev/null &
+ping 10.0.2.16 > /dev/null &
+
+# Start the VM:s
+VMS=${VMS:0:1}
+target=$TARGET vm=$VMS vagrant up --provider=libvirt
+echo "Cluster prepared successfully"
+
+# set the IP Address of the cluster as environment variable
+declare -x IP_ADDRESS=10.0.2.15
+
+# Setup DX-Tools
+for file in $(find /opt/dxtools/ -name source\*.bash)
+do
+    source $file
+done
+
+SRC_DIR="/src/com/com-main"
+UTILS_SCRIPTS_DIR=$SRC_DIR"/util/scripts"
+
+cd $SRC_DIR
+
+# Remove unnecessary configurations which are valid for legacy environment and not docker environment
+sed -i "/interface control eth0:70/d" $UTILS_SCRIPTS_DIR/ait_start.sh
+sed -i "/mip control la-ldap eth0:70/d" $UTILS_SCRIPTS_DIR/ait_start.sh
+sed -i "/cluster config --reload --all/d" $UTILS_SCRIPTS_DIR/ait_start.sh
+sed -i "/sleep 10/d" $UTILS_SCRIPTS_DIR/ait_start.sh
+sed -i "s/ait_ta start/ait_ta start --nobackup /g" $UTILS_SCRIPTS_DIR/ait_start.sh
+
+sed -i "/cmw-partial-backup-remove/d" $UTILS_SCRIPTS_DIR/installation_check.sh
+sed -i "/cmw-partial-backup-create/d" $UTILS_SCRIPTS_DIR/installation_check.sh
+sed -i "/interface control eth0:70/d" $UTILS_SCRIPTS_DIR/installation_check.sh
+sed -i "/mip control la-ldap eth0:70/d" $UTILS_SCRIPTS_DIR/installation_check.sh
+
+./util/scripts/merged_upgrade.sh -u $ADMIN_USER -p $ADMIN_PASSWORD -T ${IP_ADDRESS} -b ${COM_BASE_VERSION} -t ${COM_TO_VERSION} -bc ${CMW_BASE_VERSION} -tc ${CMW_TO_VERSION} -bs ${SEC_BASE_VERSION} -ts ${SEC_TO_VERSION} -tl ${LDE_TO_VERSION}

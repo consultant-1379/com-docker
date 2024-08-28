@@ -1,0 +1,163 @@
+#!/bin/bash
+#   This script downloads the dependecy packages into depPackages directory
+#
+#   The script will perform the following actions:
+#       1. Pick the latest version of components from artifactory using
+#          baseline confidence levels
+#       2. Download the packages from artifactory
+
+expect <<END
+set timeout 20
+set password rootroot
+spawn ssh root@192.168.2.4 "useradd -mG root comtestuser"
+expect {
+    "Password:" {
+        send "\$password\r"
+    }
+
+    "yes/no)?" {
+        send "yes\r"
+        set timeout -1
+        expect {
+            "Password:" {
+                send "\$password\r"
+            }
+            timemout {
+                exit 1
+            }
+            eof {
+                exit 1
+            }
+        }
+    }
+
+    timeout {
+        exit 1
+    }
+    eof {
+        exit 0
+    }
+}
+expect {
+    eof { exit 0 }
+    timeout { exit 1 }
+}
+END
+
+
+expect <<END
+set timeout 20
+set password rootroot
+spawn ssh root@192.168.2.4 "echo 'comtestuser ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers"
+expect {
+    "Password:" {
+        send "\$password\r"
+    }
+
+    "yes/no)?" {
+        send "yes\r"
+        set timeout -1
+        expect {
+            "Password:" {
+                send "\$password\r"
+            }
+            timemout {
+                exit 1
+            }
+            eof {
+                exit 1
+            }
+        }
+    }
+
+    timeout {
+        exit 1
+    }
+    eof {
+        exit 0
+    }
+}
+expect {
+    eof { exit 0 }
+    timeout { exit 1 }
+}
+END
+
+
+
+expect <<END
+set timeout 20
+set password rootroot
+spawn ssh root@192.168.2.4 "echo 'comtestuser:comuser@1' | chpasswd"
+expect {
+    "Password:" {
+        send "\$password\r"
+    }
+
+    "yes/no)?" {
+        send "yes\r"
+        set timeout -1
+        expect {
+            "Password:" {
+                send "\$password\r"
+            }
+            timemout {
+                exit 1
+            }
+            eof {
+                exit 1
+            }
+        }
+    }
+
+    timeout {
+        exit 1
+    }
+    eof {
+        exit 0
+    }
+}
+expect {
+    eof { exit 0 }
+    timeout { exit 1 }
+}
+END
+
+expect <<END
+set timeout 20
+set password rootroot
+spawn ssh root@192.168.2.4 "usermod -a -G system-nbi-data,root,pso,cmw-imm-users,cmw-pm-users,cmw-log-data,cmw-core,lde-core,lde-seclog-data,lde-log-data,lde-cmwea-users comtestuser"
+expect {
+    "Password:" {
+        send "\$password\r"
+    }
+
+    "yes/no)?" {
+        send "yes\r"
+        set timeout -1
+        expect {
+            "Password:" {
+                send "\$password\r"
+            }
+            timemout {
+                exit 1
+            }
+            eof {
+                exit 1
+            }
+        }
+    }
+
+    timeout {
+        exit 1
+    }
+    eof {
+        exit 0
+    }
+}
+expect {
+    eof { exit 0 }
+    timeout { exit 1 }
+}
+END
+

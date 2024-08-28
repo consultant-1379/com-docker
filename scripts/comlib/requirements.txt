@@ -1,0 +1,2 @@
+# Add package requirement for comlib
+jproperties

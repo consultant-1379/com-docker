@@ -1,0 +1,203 @@
+#!/usr/bin/env python
+
+import argparse
+
+import os
+
+import subprocess
+
+
+from cirpa.utils.shellhelper import execute, call
+from cirpa.utils.git import Git
+
+parser = argparse.ArgumentParser(description='PRI generator')
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+
+mandatoryArgs.add_argument('--version', action="store", dest="version", required=True)
+mandatoryArgs.add_argument('--prevVersion', action="store", dest="prevVersion", required=True)
+mandatoryArgs.add_argument('--password', action="store", dest="password", required=True)
+
+args = parser.parse_args()
+workDir = os.getcwd()
+
+srcDir = os.path.join(workDir, "src")
+repoDir = os.path.join(srcDir, "com")
+commainrepoDir = os.path.join(repoDir, "com-main")
+mirrorpath = "/mirrors"
+commit = "dev"
+
+execute(["mkdir", "-p", srcDir])
+
+os.chdir(srcDir)
+
+git = Git()
+git.clone(commit, "com", mirrorpath, srcDir)
+
+os.chdir(commainrepoDir)
+
+currentVersion = args.version
+sVer = currentVersion.split("-")
+MajorVer = sVer[0]
+MinorVer = int(sVer[1])
+
+resultHtml = "com_x86_64-" + currentVersion + "-release_note.html"
+configFile = "/pet2-1.3.0/config.yaml"
+flowFile = "/pet2-1.3.0/flow.yaml"
+htmlflowFile = "/pet2-1.3.0/html_flow.yaml"
+credentialsFile = "/pet2-1.3.0/credentials.yaml"
+result = "/pet2-1.3.0/release_note.html"
+
+
+# Creating deliverables collector file to show them in release notes
+
+f = open("/pet2-1.3.0/deliverables_collector.json", "w")
+f.write("[\n")
+f.write("{\n")
+f.write("\"product\" : \"com_x86_64\",\n")
+f.write("\"link\" : \"https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/com_x86_64/com_x86_64/\"\n")
+f.write("},\n")
+f.write("{\n")
+f.write("\"product\" : \"com\",\n")
+f.write("\"link\" : \"https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/com/com/\"\n")
+f.write("},\n")
+f.write("{\n")
+f.write("\"product\" : \"com-comea\",\n")
+f.write("\"link\" : \"https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/com/com-comea/\"\n")
+f.write("},\n")
+f.write("{\n")
+f.write("\"product\" : \"com-comsa\",\n")
+f.write("\"link\" : \"https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/com/com-comsa/\"\n")
+f.write("},\n")
+f.write("{\n")
+f.write("\"product\" : \"com-vsftpd\",\n")
+f.write("\"link\" : \"https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/com/com-vsftpd/\"\n")
+f.write("}\n")
+f.write("]")
+f.close()
+
+
+# Creating credentials file for all the required collectors
+
+f = open("/pet2-1.3.0/credentials.yaml", "w")
+f.write("- name: git_collector_mhweb_commain")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_mhweb_comsa")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_mhweb_com-vsftpd")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: mhweb_tr_collector")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_jira_commain")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_jira_comsa")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_jira_com-vsftpd")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: jira_collector")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_mr_commain")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_mr_comsa")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_mr_com-vsftpd")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_fptmr_commain")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_fptmr_comsa")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_fptmr_com-vsftpd")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_fpt_commain")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_fpt_comsa")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_fpt_com-vsftpd")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: fpt_collector")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_nbc_commain")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_nbc_comsa")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: git_collector_nbc_com-vsftpd")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.write("\n- name: jira_collector_nbc")
+f.write("\n  username: comadmin")
+f.write("\n  password: " + args.password)
+f.close()
+
+
+# Finding the previous PRA Last Version
+
+list = MajorVer.split(".")
+prevRelease = list[0] + "." + str(int(list[1]) - 1) + "." + list[2] + "*"
+command = 'git describe --tags --abbrev=0 --match ' + prevRelease
+output = subprocess.check_output(command, shell=True)
+prevPRALastRelease = output.strip()
+
+
+# Creating previous releases json file with required collectors
+
+f = open("/pet2-1.3.0/previous_releases.json", "w")
+f.write("[\n]")
+f.close()
+
+
+# Running the pet command multiple times based on the current version and inserting data into previous release json file
+
+prevVer = 0
+currVer = 1
+prevVersion = prevPRALastRelease
+currentVersion = MajorVer + "-" + str(currVer)
+
+while prevVer < MinorVer:
+
+    petcommand = 'pet -v --dump=RAW --dump=MAPPED --credentials=' + credentialsFile + ' -c ' + configFile + ' -f ' + flowFile + ' run -A VERSION=' + currentVersion + ' -A COMMITS=' + prevVersion + '..' + currentVersion
+    print(petcommand)
+    os.system(petcommand)
+
+    prevVer += 1
+    currVer += 1
+    prevVersion = MajorVer + "-" + str(prevVer)
+    currentVersion = MajorVer + "-" + str(currVer)
+
+
+
+# Running the Final pet command using previous release json as input and generating the release notes
+
+os.chdir("/pet2-1.3.0")
+petcommand = 'pet -v --dump=RAW --dump=MAPPED --credentials=' + credentialsFile + ' -f ' + htmlflowFile + ' run '
+print(petcommand)
+os.system(petcommand)
+
+
+# Uploading the release notes to the following repositories
+
+uploadUrl = 'https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/'
+uploadRepos = ['com_x86_64/com_x86_64', 'com/com', 'com/com-comea', 'com/com-comsa', 'com/com-vsftpd']
+
+for repo in uploadRepos:
+    call(['curl', '-X', 'PUT', '-u', 'comadmin:' + args.password, '--data-binary', '@' + result,  uploadUrl + repo + '/' + args.version + '/' + resultHtml])
+
+os.system("rm -f /pet2-1.3.0/credentials.yaml")

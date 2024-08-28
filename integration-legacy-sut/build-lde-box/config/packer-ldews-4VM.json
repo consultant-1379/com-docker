@@ -1,0 +1,80 @@
+{
+    "builders": [{
+
+        "type": "qemu",
+        "headless": true,
+
+        "iso_url": "file:///packer/downloads/ldews.iso",
+        "iso_checksum_type": "none",
+        "disk_size" : 27000,
+
+        "ssh_username": "root",
+        "ssh_password": "rootroot",
+        "ssh_port": 22,
+        "ssh_wait_timeout": "7m",
+        "shutdown_command": "shutdown -P now",
+
+        "http_directory": ".",
+        "boot_wait": "5s",
+
+        "qemuargs": [
+
+            [ "-m", "2048" ],
+            [ "-nographic", "" ],
+
+            [ "-netdev", "user,hostfwd=tcp::{{ .SSHHostPort }}-:22,id=if1-eth0"],
+            [ "-device", "virtio-net,netdev=if1-eth0,mac=02:00:00:0F:01:01"],
+
+            [ "-netdev", "user,id=if1-eth1"],
+            [ "-device", "virtio-net,netdev=if1-eth1,mac=02:00:00:0F:01:02"]
+        ],
+
+        "boot_command": [
+
+            "vga<enter>",
+            "<wait45s>",
+            "y<enter>",
+            "1<enter>",
+            "n<enter>",
+            "y<enter>",
+            "n<enter>",
+            "vga<enter>",
+            "n<enter>",
+            "rootroot<enter>",
+            "rootroot<enter>",
+            "y<enter>",
+            "4<enter>",
+            "4<enter>",
+            "0<enter>",
+            "1<enter>",
+            "8<enter>",
+            "<wait2m>",
+            "root<enter>",
+            "rootroot<enter>",
+            "ifconfig eth0 10.0.2.15<enter>",
+            "python -c \"import urllib; urllib.urlretrieve('http://{{ .HTTPIP }}:{{ .HTTPPort }}/cluster-4-nodes.conf', '/cluster/etc/cluster.conf')\"<enter>",
+            "cluster config -r<enter>",
+            "reboot<enter>"
+        ]
+
+    }],
+
+    "provisioners": [
+    {
+        "type": "shell",
+        "scripts": [
+            "vagrant.sh",
+            "sle12-zypper.sh",
+            "quirks.sh",
+            "cleanup.sh",
+            "sw_content.sh",
+            "payload-quirks.sh"
+        ]
+    }],
+
+    "post-processors": [{
+        "output": "/ldews.box",
+        "type": "vagrant"
+    }]
+
+}

@@ -1,0 +1,52 @@
+<ProductSection xmlns="http://schemas.dmtf.org/ovf/envelope/1" xmlns:ovf="http://schemas.dmtf.org/ovf/environment/1">
+   <Info>Deployment configuration for the installed software</Info>
+   <Category>csm.yml</Category>
+   <Property ovf:key="sec-la-ldap-mip-ip" ovf:type="string" ovf:userConfigurable="true" ovf:value="192.168.2.10">
+      <Label>sec-la-ldap-mip-ip</Label>
+      <Description/>
+   </Property>
+   <Property ovf:key="sec-la-ldap-mip-interface" ovf:type="string" ovf:userConfigurable="true" ovf:value="eth1">
+      <Label>sec-la-ldap-mip-interface</Label>
+      <Description/>
+   </Property>
+   <Property ovf:key="sec-la-ldap-mip-prefix" ovf:type="string" ovf:userConfigurable="true" ovf:value="24">
+      <Label>sec-la-ldap-mip-prefix</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/lde.sharedfs.config/lde-sharedfs.yaml</Category>
+   <Property ovf:key="nfs.int.server.hostname" ovf:type="string" ovf:userConfigurable="true" ovf:value="SC-1">
+      <Label>nfs.int.server.hostname</Label>
+      <Description/>
+   </Property>
+   <Property ovf:key="nfs.int.net" ovf:type="string" ovf:userConfigurable="true" ovf:value="192.168.2.0/24">
+      <Label>nfs.int.net</Label>
+      <Description/>
+   </Property>
+   <Property ovf:key="nfs.int.server.ip" ovf:type="string" ovf:userConfigurable="true" ovf:value="192.168.2.2">
+      <Label>nfs.int.server.ip</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/sec.la.oi/sec_la_adm_account.conf</Category>
+   <Property ovf:key="la-admin-passwd" ovf:type="string" ovf:userConfigurable="true" ovf:value="!invalidpassword">
+      <Label>la-admin-passwd</Label>
+      <Description/>
+   </Property>
+   <Property ovf:key="la-admin-sshkey" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
+      <Label>la-admin-sshkey</Label>
+      <Description/>
+   </Property>
+   <Property ovf:key="la-admin-userid" ovf:type="string" ovf:userConfigurable="true" ovf:value="la-admin">
+      <Label>la-admin-userid</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/coremw.core.controller/cmw_core.conf</Category>
+   <Property ovf:key="managedElementNetworkName" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
+      <Label>managedElementNetworkName</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/coremw.logm.library/logm.conf</Category>
+   <Property ovf:key="defaultURI" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
+      <Label>defaultURI</Label>
+      <Description/>
+   </Property>
+</ProductSection>

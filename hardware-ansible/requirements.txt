@@ -1,0 +1,2 @@
+wget
+ansible==2.4.4

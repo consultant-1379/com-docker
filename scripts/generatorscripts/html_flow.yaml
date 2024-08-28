@@ -1,0 +1,9 @@
+
+- json_import_previous_releases
+
+- deliverables_collector
+
+- html_generator:
+    depends_on:
+      - json_import_previous_releases
+      - deliverables_collector

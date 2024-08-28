@@ -1,0 +1,195 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/baseimages/rhel:6.6
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# Image Utility Tools
+RUN yum install -y vim
+
+# Tools used at image creation time
+RUN yum install -y wget
+RUN yum install -y bzip2
+
+# Compilation Tools
+RUN yum install -y tar
+RUN yum install -y make
+RUN yum install -y gcc
+RUN yum install -y gcc-c++
+RUN yum install -y autoconf
+RUN yum install -y bc
+
+# COM Build Dependencies
+RUN yum install -y openssl-devel
+RUN yum install -y openldap-devel
+RUN yum install -y net-snmp-devel
+RUN yum install -y fuse-devel
+RUN yum install -y ncurses-devel
+RUN yum install -y pam-devel
+
+# This package includes the validation for rpm spec
+RUN yum install -y rpmlint
+
+# FT Dependencies
+RUN yum install -y java-1.7.0-openjdk-devel
+
+# Tools used by the COM Build System
+RUN yum install -y zip
+RUN yum install -y patch
+RUN yum install -y git
+RUN yum install -y rpm-build
+
+# CppCheck result parsing dependencies
+RUN yum install -y libxslt
+
+# Documentation regeneration dependencies
+RUN yum install -y doxygen
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# Download and install openssl-1.0.1i
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.openssl.org/source/old/1.0.1/openssl-1.0.1i.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf openssl-1.0.1i.tar.gz && \
+    cd /tmp/src/openssl-1.0.1i/ && \
+    /tmp/src/openssl-1.0.1i/config --prefix=/usr --openssldir=/usr/local/openssl shared && \
+    make && \
+    make install && \
+    rm -rf /tmp/src
+
+# This stack is necessary to build git from source.
+# This should be run before Python installation, otherwise yum commands will fail to run.
+# The order is important to build git from source, first some libraries needs to be installed,
+# then gdbm-devel should be installed from rpm. gdbm-devel is necessary to yum install
+# perl-ExtUtils-MakeMaker. The version of gdbm-devel should be 1.8.0-38, otherwise build will
+# fail. After all necessary libraries are installed git can be compiled and installed from source.
+# Version of git is chosen as the same version in SLES12 image.
+RUN yum install -y curl-devel \
+                   expat-devel \
+                   gettext-devel \
+                   zlib-devel && \
+    mkdir -p /tmp/src && \
+    wget -P /tmp/src/ http://vault.centos.org/6.6/cr/x86_64/Packages/gdbm-devel-1.8.0-38.el6.x86_64.rpm && \
+    cd /tmp/src/ && \
+    rpm -i gdbm-devel-1.8.0-38.el6.x86_64.rpm && \
+    yum install -y perl-ExtUtils-MakeMaker && \
+    wget -P /tmp/src/ https://www.kernel.org/pub/software/scm/git/git-1.8.5.6.tar.gz && \
+    tar xf git-1.8.5.6.tar.gz && \
+    cd /tmp/src/git-1.8.5.6 && \
+    make configure && \
+    ./configure && \
+    make all && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Python 2.7.10
+# Default version of Python in RedHat 6.6 is 2.6.6. Compilation of lttng-ust requires 2.7+
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.python.org/ftp/python/2.7.10/Python-2.7.10.tgz && \
+    cd /tmp/src/ && \
+    tar xf Python-2.7.10.tgz && \
+    cd /tmp/src/Python-2.7.10 && \
+    ./configure --prefix=/usr/ && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Apply python 2.6 rpm package
+RUN cp -r /usr/lib64/python2.6/site-packages/rpm /usr/lib/python2.7/site-packages/
+
+# Userspace-rcu (liburcu) 0.8.4
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://www.lttng.org/files/urcu/userspace-rcu-0.8.4.tar.bz2 && \
+    cd /tmp/src/ && \
+    bzip2 -d userspace-rcu-0.8.4.tar.bz2 && \
+    tar xf userspace-rcu-0.8.4.tar && \
+    cd /tmp/src/userspace-rcu-0.8.4 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# lttng-ust 2.4.0
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ https://lttng.org/files/lttng-ust/lttng-ust-2.4.0.tar.bz2 && \
+    cd /tmp/src/ && \
+    tar xf lttng-ust-2.4.0.tar.bz2 && \
+    cd /tmp/src/lttng-ust-2.4.0 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Maven and its dependencies
+RUN wget -P /tmp/src/ http://apache.mirrors.spacedump.net/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+
+# Download, Compile and Install CMake 2.8.5
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ --no-check-certificate https://cmake.org/files/v2.8/cmake-2.8.5.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cmake-2.8.5.tar.gz && \
+    cd /tmp/src/cmake-2.8.5 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Astyle 2.05.1
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ --no-check-certificate http://sourceforge.net/projects/astyle/files/astyle/astyle%202.05.1/astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/astyle/build/gcc && \
+    make -j && \
+    install /tmp/src/astyle/build/gcc/bin/astyle /usr/bin/ && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install CppCheck 1.46
+RUN mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    wget --no-check-certificate http://sourceforge.net/projects/cppcheck/files/cppcheck/1.46/cppcheck-1.46.tar.gz && \
+    tar xzf cppcheck-1.46.tar.gz && \
+    cd /tmp/src/cppcheck-1.46/ && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+
+# Install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# Install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+RUN wget https://bootstrap.pypa.io/get-pip.py && python get-pip.py && \
+    pip install /cirpa-utils
+
+# Install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# install pyyaml
+RUN pip install pyyaml

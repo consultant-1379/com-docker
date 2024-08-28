@@ -1,0 +1,123 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/proj-lda/ldc_sles12sp5_build_image:latest
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# Clean Zypper Repositories
+RUN rm -rf /etc/zypp/repos.d/*
+
+# Zypper repositories
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP5-SDK-Pool/ SLE12-SP5-SDK-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP5-SDK-Updates/ SLE12-SP5-SDK-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP5-Updates/ SLES12-SP5-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP5-Pool/ SLES12-SP5-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE-Module-Toolchain-Pool/ SLE-Module-Toolchain-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE-Module-Toolchain-Updates/ SLE-Module-Toolchain-Updates
+
+
+# Refresh repositories
+RUN zypper lr
+
+RUN zypper install -y libcap-progs
+
+# install syslog daemon
+RUN zypper install -y rsyslog
+
+# install ssh
+RUN zypper install -y openssh
+
+# Compilation Tools
+RUN zypper install -y gcc10-c++
+
+RUN rm /usr/bin/gcc
+RUN ln -s /usr/bin/gcc-10 /usr/bin/gcc
+RUN ln -s /usr/bin/g++-10 /usr/bin/g++
+
+RUN /usr/bin/gcc --version
+RUN /usr/bin/g++ --version
+
+RUN zypper install -y tar
+RUN zypper install -y make
+RUN zypper install -y autoconf
+
+# install packages needed for ft to run
+RUN zypper install -y openldap2
+RUN zypper install -y openldap2-client
+RUN zypper install -y vsftpd
+RUN zypper install -y net-snmp
+RUN zypper install -y fuse
+RUN zypper install -y libfuse2
+RUN zypper install -y timezone
+RUN zypper install -y net-tools
+RUN zypper install -y which
+RUN zypper install -y sudo
+RUN zypper install -y procinfo
+
+RUN zypper install -y --auto-agree-with-licenses java-1_8_0-ibm-devel
+RUN export JAVA_HOME=/usr/lib64/jvm/java-1.8.0-ibm-1.8.0/jre
+
+# Install Stability test dependency
+RUN zypper install -y wget
+RUN zypper install -y python python-xml lsb-release python-lxml rsync
+RUN wget https://bootstrap.pypa.io/pip/2.7/get-pip.py && python get-pip.py
+#RUN wget --quiet https://bootstrap.pypa.io/get-pip.py && python get-pip.py
+RUN pip install pexpect
+
+# extra packages
+RUN zypper install -y vim
+
+# set the root password
+RUN echo "root:rootroot" | chpasswd
+
+# set the ping permissions
+RUN chmod 4755 /usr/bin/ping
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+# install valgrind
+RUN cd /tmp/ && \
+    wget --quiet --no-check-certificate https://sourceware.org/pub/valgrind/valgrind-3.21.0.tar.bz2  && \
+    tar xjf valgrind-3.21.0.tar.bz2  && \
+    cd valgrind-3.21.0  && \
+    ./configure  --prefix=/usr && \
+    make  && \
+    make install && \
+    cd / && rm -rf /tmp/valgrind-3.21.0 && rm -rf /tmp/valgrind-3.21.0.tar.bz2
+
+# create com-core & create all groups needed for com-core
+RUN groupadd -g 319 "com-core" && \
+    mkdir -p "/usr/share/com-core" && \
+    useradd -r -u 311 -g 319 -d "/usr/share/com-core" -s "/bin/false" -c "com-core" "com-core" && \
+    groupadd -g 302 "system-nbi-data" && \
+    groupadd -g 305 "sec-crypto-users" && \
+    groupadd -g 306 "sec-credu-users" && \
+    groupadd -g 318 "sec-uai-users" && \
+    groupadd -g 327 "sec-acs-config" && \
+    groupadd -g 64001 "pso" && \
+    usermod -G "system-nbi-data,sec-crypto-users,sec-credu-users,sec-uai-users,sec-acs-config,pso" "com-core"
+
+# add the group sec-uai-users to comuser
+RUN usermod -G "sec-uai-users" "comuser"
+
+# copy the sshd_config file to the image
+COPY sles12sp2/sut/sshd_config /etc/ssh/sshd_config
+
+RUN sed -i '/pam.loginuid.so/ s/required/optional/' /etc/pam.d/sshd
+
+# modify the password authentication to yes to be able to connect to ssh session
+RUN sed -i '/PasswordAuthentication/ s/no/yes/' /etc/ssh/sshd_config
+
+# modify the /etc/sysconfig/openldap to start the ldap server as root
+RUN sed -i s/OPENLDAP_USER=\"ldap\"/OPENLDAP_USER=\"root\"/g /etc/sysconfig/openldap
+RUN sed -i s/OPENLDAP_GROUP=\"ldap\"/OPENLDAP_GROUP=\"root\"/g /etc/sysconfig/openldap
+
+# start
+COPY sles12sp5/sut/service /usr/sbin/service
+COPY sles12sp5/sut/start.sh /start.sh
+ENTRYPOINT ["bash", "/start.sh"]

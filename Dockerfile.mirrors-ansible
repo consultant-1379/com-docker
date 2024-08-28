@@ -1,0 +1,32 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# install tools
+RUN apt-get update && \
+    apt-get install -y wget \
+                       python \
+                       python-pip \
+                       python-dev \
+                       build-essential \
+                       libssl-dev \
+                       libffi-dev
+
+COPY mirrors-ansible/ /
+RUN chmod +x /update-mirrors.py
+RUN ln -sfv /update-mirrors.py /bin/update-mirrors.py
+
+RUN mkdir -p /root/.ansible/group_vars
+RUN mv buildworkers.yml /root/.ansible/group_vars/
+
+COPY cirpa/cirpa-utils /cirpa-utils
+
+# Install necessary python modules and ansible
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+
+ENV ANSIBLE_HOST_KEY_CHECKING False

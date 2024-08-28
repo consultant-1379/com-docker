@@ -1,0 +1,30 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+RUN apt-get update && \
+    apt-get install -y git \
+                       python \
+                       python-pip \
+                       python-dev \
+                       build-essential \
+                       libssl-dev \
+                       libffi-dev
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+
+COPY update-mirrors/requirements.txt /requirements.txt
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+
+COPY update-mirrors/ /
+RUN chmod 600 /id_rsa_gerrit
+RUN chmod +x /ssh_git
+
+ENV IDENTITY /id_rsa_gerrit
+ENV GIT_SSH /ssh_git

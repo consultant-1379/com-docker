@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="version" content="1.0">
+    <meta name="Content-Script-Type" content="text/javascript">
+    <style>
+      .nbc {background-color: khaki;}
+      body { margin: 2%; margin-left: 8%; }
+    </style>
+</head>
+
+<body>
+<h1>Release notes</h1>
+<p>
+   <b><span class="emphasis">Component</span>: </b>COM<br>
+   <b><span class="emphasis">Product NR</span>: </b>APR 901 0443/7<br>
+</p>
+
+
+<div th:each="listitem : ${json_import_previous_releases}">
+   <h2><span th:text="${listitem.arguments.VERSION}"></span></h2>
+
+   <div>Deliverables:
+           <span th:each="item : ${deliverables_collector}">
+                   <a th:href="@{${item.link} + ${listitem.arguments.VERSION}}"><span th:text="${item.product} "></span></a>
+           </span>
+   </div>
+
+   <div th:each="item : ${listitem.fpt_collector}">
+   <ul>
+        <li>[Implemented Functionality] <a th:href="${item.link}" th:text="${item.status}"></a>:
+        <span th:text=" ${item.heading}"></span></li>
+   </ul>
+   </div>
+
+   <div th:each="item : ${listitem.mhweb_tr_collector}">
+   <ul>
+     <li>[Correction] <a th:href="${item.mhweb_link}" th:text="${item.id}"></a>:
+     <span th:text=" ${item.summary}"></span></li>
+   </ul>
+   </div>
+
+   <div th:each="item : ${listitem.jira_collector}">
+   <ul>
+     <li>[Implemented Functionality] <a th:href="${item.link}" th:text="${item.id}"></a>:
+     <span th:text=" ${item.heading}"></span></li>
+   </ul>
+   </div>
+
+   <div th:each="item : ${listitem.jira_collector_nbc}">
+   <ul>
+     <li>[NBC] <a th:href="${item.link}" th:text="${item.id}"></a>:
+     <span th:text=" ${item.heading}"></span></li>
+   </ul>
+   </div>
+
+</div>
+
+<h2>Documents</h2>
+    <div>The support library is available in:
+        <a href="https://calstore.internal.ericsson.com/elex?FF=CBA+Common+Components+and+RDA/COM">COM, Ericsson Internal Support</a>
+    </div>
+    <p>To see what documents that have changed from a previous
+        version, please use the Compare function in CAL Store. Updated, new,
+        or removed documents, if any, will be listed:</p>
+    <ol>
+        <li>Tick the boxes in front of the product numbers of the two
+            libraries you want to compare, for example the two latest releases
+            of a Support library.</li>
+        <li>Click on the Compare-two-libraries icon on the top tool
+            bar. The Compare libraries window opens.</li>
+        <li>Click on Execute and the Compare Results list will be accessible.</li>
+    </ol>
+</body>
+</html>
+

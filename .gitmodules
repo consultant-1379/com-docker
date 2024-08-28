@@ -1,0 +1,6 @@
+[submodule "cirpa"]
+	path = cirpa
+	url = ../cirpa
+[submodule "docker-ci"]
+	path = docker-ci
+	url = ../docker-ci

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+IMAGENAME="$USER-build-image"
+
+echo "Preparing the environment..."
+docker build -t "$IMAGENAME" -f Dockerfile.build-image . &>/dev/null
+echo "Done"
+
+GITROOT=$(git rev-parse --show-toplevel)
+WORKDIR="/repo/"${PWD##*/}
+docker run \
+    --privileged \
+    -it \
+    --rm \
+    -v "$GITROOT:$WORKDIR" \
+    --workdir "$WORKDIR" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    "$IMAGENAME" \
+    "$USER" \
+    "$UID" \
+    "$(id -g "$USER")" \
+    "-u $USER" \
+    "$@"

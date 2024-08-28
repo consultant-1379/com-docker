@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+import os
+
+from shutil import copyfile
+from cirpa.utils.shellhelper import execute, call_as_user
+from comlib.suiteparser import SuiteParser
+from comlib.comtestproperties import ComTestProperties
+
+parser = argparse.ArgumentParser(description='Merged Upgrade test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--test-package', action="store", dest="testPackage", required=True)
+mandatoryArgs.add_argument('--cluster-size', action="store", dest="clusterSize", required=True)
+mandatoryArgs.add_argument('--version-file', action="store", dest="versionFile", required=True)
+mandatoryArgs.add_argument('--deployment-package', action="store", dest="deploymentPackage", required=True)
+mandatoryArgs.add_argument('--runtime-package', action="store", dest="runtimePackage", required=True)
+
+args = parser.parse_args()
+
+workdir = "/build/com-build/"
+
+# extract the test package
+print (execute(["tar", "xf", args.testPackage]))
+
+# create dist directory if it doesnot exists
+if not os.path.exists(os.path.join(workdir, "dist")):
+    os.makedirs(os.path.join(workdir, "dist"))
+
+# copy the runtime package to workdir/dist
+copyfile("/" + args.runtimePackage, os.path.join(workdir, "dist", args.runtimePackage))
+copyfile("/" + args.deploymentPackage, os.path.join(workdir, "dist", args.deploymentPackage))
+
+execute(["chmod", "-R", "757", "/src", "/build"])
+
+execute(["mkdir", "-p", "/workspace", "/tmp/am-cache", "/opt/dxtools/packages"])
+call_as_user("root", ["chmod", "-R", "777", "/workspace", "/tmp/am-cache/", "/opt/dxtools/.am/*", "/opt/dxtools", "/opt/dxtools/*"])
+
+# copying root user $PATH value to comuser $PATH variable
+# Fix required to run dxtools and maven commands by comuser in ubuntu container for integration tests
+with open('/etc/environment', 'r') as envFile:
+    rootEnvPath = envFile.read().replace('\n', '')
+
+# create the cluster and run merged upgrade tests
+command = ["./startmergedupgrade"]
+command += [args.clusterSize]
+command += [args.versionFile]
+
+returnValue = call_as_user("root", command)
+if (returnValue > 0):
+    print ("Error: Merged upgrade test failed")
+    sys.exit(returnValue)
+
+
+# halt the created cluster
+retval = call_as_user("root", ["vagrant", "halt", "--force"])
+if (retval > 0):
+    print ("Warning: Cluster halt failed but process continue to destroy")
+
+# destroy the created cluster
+retval = call_as_user("root", ["vagrant", "destroy", "--force"])
+if (retval > 0):
+    print ("Warning: Cluster removal failed")
+sys.exit(returnValue)

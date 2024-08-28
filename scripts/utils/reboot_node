@@ -1,0 +1,127 @@
+#!/usr/bin/expect -f
+#
+# New syntax:
+#
+#     reboot_node HOST USER PASSWORD
+#
+# Legacy syntax (assumes that user 'root' and password 'rootroot' works):
+#
+#     reboot_node HOST
+#
+
+log_user 0
+
+proc error {message} {
+	set time [clock format [clock seconds] -format "%Y-%m-%dT%H:%M:%S"]
+	set message [string trim $message]
+	puts stderr "$time  error: $message"
+	exit 1
+}
+
+proc log {message} {
+	set time [clock format [clock seconds] -format "%Y-%m-%dT%H:%M:%S"]
+	puts "$time  $message"
+}
+
+proc is_ssh_running {} {
+	global host
+
+	if {[catch {exec netcat -z -w 5 $host 22}]} {
+		return false
+	}
+
+	return true
+}
+
+proc execute_command {command} {
+	global host
+	global user
+	global password
+
+	set timeout 120
+	set attempts 0
+
+	if {![is_ssh_running]} {
+		error "SSH is down on $host, unable to execute: $command"
+	}
+	if {[catch {spawn ssh -o StrictHostKeyChecking=no -o ConnectionAttempts=60 $user@$host "$command"} reason]} {
+		error "unable to spawn ssh: $reason"
+	}
+	match_max 100000
+	expect {
+		-re "\[P|p]assword:" {
+			if {[expr $attempts > 0]} {
+				error "unable to authenticate as $user, wrong user/password"
+			}
+			send -- "$password\r"
+			incr attempts
+			exp_continue
+		} -re "Could not resolve hostname.*" {
+			error "$expect_out(buffer)"
+		} eof {
+		} timeout {
+			error "execute_command timed out"
+		}
+	}
+
+	return [string trim $expect_out(buffer)]
+}
+
+proc wait_for_node {} {
+	global host
+
+	set wait_time 300
+
+	for {set i 0} {$i < $wait_time} {incr i} {
+		if {![is_ssh_running]} {
+			log "SSH is down on $host"
+			break
+		}
+		after 1000
+	}
+	if {[expr $i >= $wait_time]} {
+		error "SSH server did not go down on $host within $wait_time seconds"
+	}
+	for {set i 0} {$i < $wait_time} {incr i} {
+		if {[is_ssh_running]} {
+			log "SSH is up on $host"
+			break
+		}
+		after 1000
+	}
+	if {[expr $i >= $wait_time]} {
+		error "SSH server did not come back up on $host within $wait_time seconds"
+	}
+}
+
+###############################################################################
+
+if {$argc < 1} {
+	log "no host specified"
+	exit 1
+}
+
+set host [lindex $argv 0]
+set user root
+set password rootroot
+
+if {[expr $argc == 3]} {
+	set user [lindex $argv 1]
+	set password [lindex $argv 2]
+}
+
+log "rebooting $host"
+
+set uptime_before [execute_command "cut -d' ' -f1 < /proc/uptime"]
+execute_command reboot
+wait_for_node
+set uptime_after [execute_command "cut -d' ' -f1 < /proc/uptime"]
+
+if {[expr $uptime_after >= $uptime_before]} {
+	error "unable to reboot $host"
+}
+
+log "successfully rebooted $host"
+
+exit 0
+

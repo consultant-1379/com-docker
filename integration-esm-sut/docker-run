@@ -1,0 +1,8 @@
+#!/bin/bash
+
+IMAGE=$USER-esm-sut
+CONTAINER_NAME=$IMAGE
+
+docker build -t $IMAGE -f Dockerfile.integration .
+docker rm $CONTAINER_NAME --force
+docker run -it --privileged --cap-add=ALL --device /dev/kvm:/dev/kvm:rw -v /repo/qperebj/gitRepos/:/gitRepos/ --add-host="SC-1:192.168.1.100" --add-host="SC-2:192.168.1.101" --name $CONTAINER_NAME $IMAGE $@

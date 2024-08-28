@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Start libvirt
+start-libvirt
+
+cd $VAGRANT_DIR
+
+# Create Vagrant box
+./create-vagrant-box
+
+# Start the VM:s
+vagrant up --provider=libvirt
+
+# Prevent the container from exiting
+while true; do
+    sleep 300
+done

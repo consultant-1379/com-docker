@@ -1,0 +1,56 @@
+#!/usr/bin/env python
+
+from comeabase import ComEABase
+
+from cirpa.utils.shellhelper import execute, call
+
+import os
+import argparse
+
+parser = argparse.ArgumentParser(description='COMEA Unit Test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--commit', action="store", dest="commit", default=False, required=True)
+mandatoryArgs.add_argument('--repo', action="store", dest="repo", default=False, required=True)
+mandatoryArgs.add_argument('--mirror-path', action="store", dest="mirrorpath", default=False, required=True, help="The path to where all the mirrored repositories are located")
+
+# optional
+parser.add_argument('--build-dir', action="store", dest="builddir", default="/build")
+parser.add_argument('--local-src', action="store", dest="localsrc")
+parser.add_argument('--gerrit-project', action="store", dest="gerritProject", default=False)
+parser.add_argument('--gerrit-patchset', action="store", dest="patchset", default=False)
+parser.add_argument('--branch', action="store", dest="branch", default=False, help="Branch to checkout after repository clone")
+parser.add_argument('--gerrit-trigger', action="store", dest="gerritTrigger", choices=['trigger','review','push'])
+parser.add_argument('--gerrit-branch', action="store", dest="gerritBranch", default=False, help="Gerrit branch of submodule where new commit is delivered")
+
+args = parser.parse_args()
+
+
+class ComEaUnitTest(ComEABase):
+
+    def _build(self):
+        # add $USER environmental variable to the system
+        os.environ["USER"] = "root"
+
+        # create build directory
+        command = ["mkdir", "-p", self._args.builddir]
+        execute(command)
+
+        os.chdir(self._args.builddir)
+
+        print (self._repoDir)
+
+        # run cmake
+        returnValue = call(["cmake"] + ["-DCOMEA=on"] + [self._repoDir], debug=True)
+
+        if returnValue > 0:
+            return returnValue
+
+        # run COMEA unittest
+        returnValue = call(["make", "comea_lotc_unittest"], debug=True)
+
+        return returnValue
+
+
+test = ComEaUnitTest(args)
+test.build()

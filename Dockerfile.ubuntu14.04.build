@@ -1,0 +1,127 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/baseimages/ubuntu:14.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# Necessary to get rid of
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update
+
+# Image Utility Tools
+RUN apt-get install -y vim
+
+# Tools used at image creation time
+RUN apt-get install -y wget
+
+# Compilation Tools
+RUN apt-get install -y tar
+RUN apt-get install -y make
+RUN apt-get install -y gcc
+RUN apt-get install -y g++
+RUN apt-get install -y autoconf
+RUN apt-get install -y rpm
+RUN apt-get install -y bc
+
+# COM Build Dependencies
+RUN apt-get install -y libssl-dev
+RUN apt-get install -y libldap2-dev
+RUN apt-get install -y libsnmp-dev
+RUN apt-get install -y libfuse-dev
+RUN apt-get install -y libncurses5-dev
+RUN apt-get install -y liblttng-ust-dev
+RUN apt-get install -y libpam0g-dev
+RUN apt-get install -y libyaml-dev
+RUN apt-get install -y libpython2.7-dev
+
+# Tools used by the COM Build System
+RUN apt-get install -y zip
+RUN apt-get install -y patch
+RUN apt-get install -y git
+
+# CppCheck result parsing dependencies
+RUN apt-get install -y libxslt1.1
+
+# Documentation regeneration dependencies
+RUN apt-get install -y doxygen
+
+# FT Dependencies
+RUN apt-get install -y openjdk-7-jdk
+
+# CIRPA Dependencies
+RUN apt-get install -y python-pip
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# Maven and its dependencies
+RUN wget -P /tmp/src/ http://apache.mirrors.spacedump.net/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+
+# Download, Compile and Install CMake 2.8.5
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ --no-check-certificate https://cmake.org/files/v2.8/cmake-2.8.5.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cmake-2.8.5.tar.gz && \
+    cd /tmp/src/cmake-2.8.5 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Astyle 2.05.1
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ http://sourceforge.net/projects/astyle/files/astyle/astyle%202.05.1/astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/astyle/build/gcc && \
+    make -j && \
+    install /tmp/src/astyle/build/gcc/bin/astyle /usr/bin/ && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install CppCheck 1.46
+RUN mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    wget http://sourceforge.net/projects/cppcheck/files/cppcheck/1.46/cppcheck-1.46.tar.gz && \
+    tar xzf cppcheck-1.46.tar.gz && \
+    cd /tmp/src/cppcheck-1.46/ && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+
+# Install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# Install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# Install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+RUN pip install /cirpa-utils
+
+# install pyyaml
+RUN pip install pyyaml

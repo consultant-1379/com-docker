@@ -1,0 +1,18 @@
+<!--To disable LDE-SUGaR feature and to Enable Disabling of kernel Modules-->
+<ProductSection xmlns="http://schemas.dmtf.org/ovf/envelope/1" xmlns:ovf="http://schemas.dmtf.org/ovf/environment/1">
+   <Category>config/initial/coremw.core/postinstall.conf</Category>
+   <Property ovf:key="managedElementNetworkName" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
+      <Label>managedElementNetworkName</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/ldews.os/lde-nonroot.conf</Category>
+   <Property ovf:key="lde_runas_nonroot" ovf:type="string" ovf:userConfigurable="true" ovf:value="disabled">
+      <Label>lde_runas_nonroot</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/ldews.os/kernel-modules.conf</Category>
+   <Property ovf:key="disable_loading_kernel_modules" ovf:type="string" ovf:userConfigurable="true" ovf:value="true">
+      <Label>disable_loading_kernel_modules</Label>
+      <Description/>
+   </Property>
+</ProductSection>

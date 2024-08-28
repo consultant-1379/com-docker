@@ -1,0 +1,326 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+import re
+
+from shutil import copyfile
+from cirpa.utils.shellhelper import execute, call_as_user, call
+from comlib.suiteparser import SuiteParser
+from comlib.comtestproperties import ComTestProperties
+from comlib.version import getVersion
+
+parser = argparse.ArgumentParser(description='Integration test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--test-package', action="store", dest="testPackage", default=False, required=True)
+mandatoryArgs.add_argument('--suite', action="store", dest="suite", default=None, required=True)
+mandatoryArgs.add_argument('--sut-ip1', action="store", dest="sutIp1", default=False, required=True)
+mandatoryArgs.add_argument('--target', action="store", dest="target", default=None, required=True)
+mandatoryArgs.add_argument('--cluster-size', action="store", dest="clusterSize", required=True)
+
+# optional
+parser.add_argument('--sut-ip2', action="store", dest="sutIp2")
+parser.add_argument('--com-version', action="store", dest="comVersion")
+parser.add_argument('--version-file', action="store", dest="versionFile", default="versionFile.xml")
+parser.add_argument('--runtime-sdp', action="store", dest="runtimeSdp", default=False)
+parser.add_argument('--debug-sdp', action="store", dest="debugSdp", default=False)
+parser.add_argument('--deployment-package', action="store", dest="deploymentPackage", default=False)
+parser.add_argument('--runtime-package', action="store", dest="runtimePackage", default=False)
+parser.add_argument('--base', action="store", dest="base", default=False)
+parser.add_argument('--brf-action', action="store", dest="brfAction", default=False)
+parser.add_argument('--external-fs', action="store", dest="externalFs", default=False)
+
+args = parser.parse_args()
+
+def clusterCleanUpCommands():
+
+    retry = 0
+    # halt the created cluster
+    while (retry < 3):
+        retval = call_as_user("root", ["vagrant", "halt", "--force"])
+        if (retval > 0):
+            print ("Error: Cluster halt failed but process continue to destroy")
+            retry += 1
+        else:
+            break
+    # TODO: vagrant destroy command unable to destroy cdrom attached vm's
+    #      Need to verify with higher version of vagrant and vagrabt-libvirt
+    if args.target == "csm":
+        # detach the configdrive.iso from the controllers
+        retvalSc2 = call_as_user("root", ["virsh", "detach-disk", "_SC-2", "hda", "--current"])
+        retvalSc1 = call_as_user("root", ["virsh", "detach-disk", "_SC-1", "hda", "--current"])
+        if retvalSc2 > 0 or retvalSc1 > 0:
+            print ("Error: Detaching of configdrive.iso failed. Continuing to destroy vm's")
+
+    # destroy the created cluster
+    retry = 0
+    while (retry < 3):
+        retval = call_as_user("root", ["vagrant", "destroy", "--force"])
+        if (retval > 0):
+            print ("Error: Cluster removal failed")
+            retry += 1
+        else:
+            break
+    return retval
+
+def calculateBaseDeduction(base):
+   if re.match("[A-H]",base[4],re.I):
+      deduct = "65"
+   elif re.match("[J-N]",base[4],re.I):
+      deduct = "66"
+   elif re.match("[S-Z]",base[4],re.I):
+      deduct = "70"
+   return deduct
+
+if args.target == "legacy":
+    if args.runtimeSdp is False or args.deploymentPackage is False or args.runtimePackage is False:
+        print ("If target is legacy then --runtime-sdp, --deployment-package, --runtime-package are required")
+        exit(1)
+
+workdir = "/build/com-build/"
+srcdir = "/src/com/com-main/"
+
+# extract the test package
+print (execute(["tar", "xf", args.testPackage]))
+
+# create dist directory if it doesnot exists
+if not os.path.exists(os.path.join(workdir, "dist")):
+    os.makedirs(os.path.join(workdir, "dist"))
+
+# copy the runtime package to workdir/dist
+if args.target == "legacy":
+    copyfile("/" + args.runtimePackage, os.path.join(workdir, "dist", args.runtimePackage))
+    copyfile("/" + args.runtimeSdp, os.path.join(workdir, "dist", args.runtimeSdp))
+    copyfile("/" + args.debugSdp, os.path.join(workdir, "dist", args.debugSdp))
+    copyfile("/" + args.deploymentPackage, os.path.join(workdir, "dist", args.deploymentPackage))
+
+resourcesDir = (os.path.join(workdir, "resources"))
+
+if args.base:
+    # create bfuPackages directory if it doesnot exists
+    if not os.path.exists("/bfuPackages"):
+        os.makedirs("/bfuPackages")
+
+    copyfile("/" + args.runtimePackage, os.path.join(workdir, args.runtimePackage))
+    copyfile("/" + args.deploymentPackage, os.path.join(workdir, args.deploymentPackage))
+    copyfile("/" + args.runtimePackage, os.path.join("/bfuPackages", args.runtimePackage))
+    copyfile("/" + args.deploymentPackage, os.path.join("/bfuPackages", args.deploymentPackage))
+
+    # update com_swdp file to pick the docker resourcei swdp path
+    retval = call_as_user("root", ["sed -i", "'s;build/com-build/tmp/test/integration/bfu;bfuPackages;g'", resourcesDir + "/swdp/com_swdp"])
+    if (retval > 0):
+        print ("com swdp modification failed")
+        exit(retval)
+
+    if args.comVersion is None:
+        comVersion = getVersion(workdir)
+
+    # am_script.sh and csp_package_creation.sh are not available in some of the com versions
+    if os.path.exists(srcdir + "test/scripts/am_script.sh"):
+        # Modify am script to align with docker environment
+        retval = call_as_user("root", ["sed -i", "'s;${HOME}/.com/am;/opt/dxtools/.am;g'", srcdir + "test/scripts/am_script.sh"])
+        if (retval > 0):
+            print ("com am test script failed")
+            exit(retval)
+
+    if os.path.exists(srcdir + "test/scripts/csp_package_creation.sh"):
+        # Modify csp package creation script to align with docker environment
+        retval = call_as_user("root", ["sed -i", "'s;home/${USER}/.dxtools;opt/dxtools;g'", srcdir + "test/scripts/csp_package_creation.sh"])
+        if (retval > 0):
+            print ("com csp package creation script modification failed")
+            exit(retval)
+
+    # fetch Com BFU version
+    bfuRegex = "^[0-9]+.[0-9]+.[0-9]+-[0-9]{1,}$"
+    if re.match(bfuRegex, args.base) is None:
+        if args.base == "6-R1A06":
+            fromVersion = "6.0.0"
+        elif args.base == "7-R1A19":
+            fromVersion = "7.0.0"
+        else:
+            deduct = calculateBaseDeduction(args.base)
+            cmd = "echo $(echo " + args.base + " | cut -d - -f 1).$(echo $(expr $(echo " + args.base + " | cut -c4-4) - 1)).$(echo $(expr $(printf \"%d\\n\" \\'$(echo " + args.base + " | cut -c5-5)) - " + deduct + "))-$(echo " + args.base + " | cut -c6- | sed 's/^0//')"
+
+            # TODO: Change below subprocess check_output to use cipra execute command with shell=True argument
+            import subprocess
+            fromVersion = subprocess.check_output(cmd, shell=True)
+            fromVersion = fromVersion.rstrip()
+    else:
+        fromVersion = args.base
+
+    # Check if com Bfu version is fetched
+    if fromVersion:
+        print ("Com BFU Version value " + fromVersion)
+    else:
+        print ("Failed to fetch Com BFU Version " + fromVersion)
+        exit()
+
+    # download Com BFU packages
+    retval = call_as_user("root", ["source", "/downloadDepPackages;", "downloadComPackage", fromVersion])
+    if (retval > 0):
+            print ("Com BFU packages failed to download")
+
+# download com-vsftpd rpm
+comVsftpdRpmName = None
+if args.target == "legacy" and args.base is False:
+    if args.comVersion is None:
+        comVersion = getVersion(workdir + "/dist")
+    if float(comVersion.rsplit(".", 1)[0]) == 7.1:
+        execute(["mkdir", "-p", "/depPackages/comVsftpdRpm"])
+        comVsftpdTarPackage = "com-vsftpd.tar.gz"
+        retval = call_as_user("root", ["source", "/downloadDepPackages;", "downloadComDepsPackage", "com_vsftpd_package", comVsftpdTarPackage])
+        if (retval > 0):
+            print ("Error: Failed to download Com-vsftpd package")
+            exit(retval)
+        execute(["tar", "-xzf", "/depPackages/" + comVsftpdTarPackage, "-C", "/depPackages/comVsftpdRpm"])
+        comVsftpdRpmName = execute(["tar", "-tzf", "/depPackages/" + comVsftpdTarPackage])
+
+# create the cluster
+command = ["/start"]
+if args.target != "lda":
+    command += [args.target]
+command += [args.clusterSize]
+if args.target == "legacy":
+    command += [args.versionFile]
+if args.brfAction == "upgrade" or args.brfAction == "restore":
+    command += [args.brfAction]
+if args.externalFs:
+    command += [args.externalFs]
+returnValue = call_as_user("root", command)
+call_as_user("root", ["source", "/collect_logs", args.target, args.sutIp1])
+if (returnValue > 0):
+    print ("Cluster preparation failed")
+    exit(returnValue)
+
+# find the full path for the test/pom.xml to use when running the mvn command
+# TODO find a way to search for pom.xml instead of hardcoding it to serach in /src/
+testdir = execute(["find", "/src/", "-printf", "%p\\n"])
+
+for item in testdir.split("\n"):
+    if "test/pom.xml" in item:
+        testdir = item
+        break
+
+print (testdir)
+
+if args.target == "lda":
+    # comuser key fix for lda
+    execute(["mkdir", "-p", "/home/comuser/.ssh"])
+    execute(["cp", "-r", "/root/.ssh/id_rsa", "/home/comuser/.ssh/id_rsa"])
+    execute(["chmod", "-R", "755", "/home/comuser/"])
+
+    #Download comsa dependent packages for LDA:
+    retval = call_as_user("root", ["source", "/downloadDepPackages", args.target])
+    if (retval > 0):
+        print ("Error: Failed to download comsa dependent packages")
+        exit(retval)
+
+# loading the comtest properties file in tmp directory
+os.mkdir(os.path.join(workdir, "tmp"))
+
+propertyFilename = os.path.join(workdir, "com_test.properties")
+
+comTestProperties = ComTestProperties()
+
+comTestProperties.load(propertyFilename)
+
+# Setting dependency package directories
+depsDir = "/depPackages/"
+
+# Setting pmproducer sdp and campaign
+pmProducerSdp = "pmProducer/R2A181/ERIC-PMPRODUCER-CXP9010005_1.sdp"
+pmProducerCampaign = "pmProducer/R2A181/ERIC-PMPRODUCER-CXP9010005_1_Install.sdp"
+
+# Setting comsaTestDir path
+comsaTestDir = "comsaTestData/"
+bfuPackagesDir = "/bfuPackages"
+comsaNtfSend = "comsaNtfSend/com-test-ntfsend"
+
+# Setting the comtest properties parameters
+comTestProperties.setComRemoteHost(args.sutIp1)
+if args.target == "lda":
+    comTestProperties.setDeploymentType("LDA")
+    if args.clusterSize == "2+0" or args.clusterSize == "2+2":
+        comTestProperties.setComCmwSystemSC2Address(args.sutIp2)
+        comTestProperties.setClusterSize(args.clusterSize)
+
+if args.target != "lda":
+    comTestProperties.setComCmwSystemSC2Address(args.sutIp2)
+
+comTestProperties.setStartport("27000")
+comTestProperties.setEndPort("28000")
+comTestProperties.setPorts("15")
+comTestProperties.setComUbuntuAddress("localhost")
+
+if args.target == "legacy":
+    comTestProperties.setSecCertPackageDir(depsDir)
+    comTestProperties.setSecLaPackageDir(depsDir)
+    comTestProperties.setSecAcsPackageDir(depsDir)
+    comTestProperties.setSecSecMPackageDir(depsDir)
+    comTestProperties.setSecLdapPackageDir(depsDir)
+    comTestProperties.setSecCryptoPackageDir(depsDir)
+    comTestProperties.setComDeploymentTemplate(args.deploymentPackage)
+    comTestProperties.setComBundleSdp(args.runtimeSdp)
+    comTestProperties.setLdewSSdpPackageDir(depsDir)
+    # Setting com-vsftpd rpm path
+    if float(comVersion.rsplit(".", 1)[0]) == 7.1 and args.base is False:
+        comTestProperties.setComVsftpdRpm(depsDir + "comVsftpdRpm/" + comVsftpdRpmName)
+
+comTestProperties.setComDebugSdp(args.debugSdp)
+comTestProperties.setPmProducerSdp(depsDir + pmProducerSdp)
+comTestProperties.setPmProducerCampaign(depsDir + pmProducerCampaign)
+comTestProperties.setComsaTestDir(depsDir + comsaTestDir)
+comTestProperties.setComsaNtfSend(depsDir + comsaNtfSend)
+
+if args.base:
+    comTestProperties.setBfuFromVersion(fromVersion)
+    comTestProperties.setUpgradeBundlesDir(bfuPackagesDir)
+    comTestProperties.setResourcesDir(resourcesDir)
+    comTestProperties.setUpPackageDir(bfuPackagesDir)
+    comTestProperties.setComRuntimePackageRepo(workdir + "dist")
+    # TODO: Find a way to remove CXP numbers for COM packages
+    comTestProperties.setComSdpPnr("CXP9028493_2")
+
+comTestProperties.store(propertyFilename)
+
+p = SuiteParser()
+
+p.parse(os.path.join(workdir, "ft-suites.bash"))
+
+suiteFile = p.getSuiteFile(args.suite)
+
+suiteName = p.getName(args.suite)
+
+propertiesFile = "-Dprops=" + propertyFilename
+
+testDirectory = "--file=" + testdir
+
+execute(["chmod", "-R", "757", "/src", "/build"])
+
+if args.base:
+    execute(["mkdir", "-p", "/workspace", "/tmp/am-cache", "/opt/dxtools/packages"])
+    call_as_user("root", ["chmod", "-R", "777", "/bfuPackages", "/workspace", "/tmp/", "/opt/dxtools/.am/*", "/opt/dxtools", "/opt/dxtools/*"])
+
+# copying root user $PATH value to comuser $PATH variable
+# Fix required to run dxtools and maven commands by comuser in ubuntu container for integration tests
+with open('/etc/environment', 'r') as envFile:
+    rootEnvPath = envFile.read().replace('\n', '')
+
+retval = call_as_user("root", ['export', rootEnvPath, '&&', "mvn", "-B", testDirectory, suiteFile, suiteName, propertiesFile, "test"], True)
+if (retval > 0):
+    print ("Integration test suite execution failed")
+    clusterCleanUpCommands()
+    exit(retval)
+
+# Call jcat-result.sh to generate the FT report
+result_script_path = os.path.join(srcdir, "util", "scripts", "jcat-result.sh")
+jcat_path = os.path.join(workdir, "gen", "JCAT")
+report_html_path = os.path.join(jcat_path, "ft-report.html")
+
+retval = call_as_user("comuser", [result_script_path, "-v", "-h", jcat_path, ">", report_html_path])
+if (retval > 0):
+    print ("Warning: FT report generation failed")
+
+retval = clusterCleanUpCommands()
+exit(retval)

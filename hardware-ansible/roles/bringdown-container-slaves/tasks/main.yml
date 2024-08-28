@@ -1,0 +1,36 @@
+---
+# check for containers
+- name: Collect hardware slave containers
+  shell: >
+    docker ps -a | awk '{print $NF}' | grep -E '(characteristics(|_SP2)|rcs_(ppc|arm)|stability(|_SP2)|ft_blacklist)'
+  ignore_errors: yes
+  register: container_names
+
+# Building list for above generated slave containers name
+- name: Collect hardware slave container names in a list
+  set_fact:
+    container_name_list: '{{ item.stdout_lines | list }}'
+  when: item.stdout != ""
+  with_items:
+    - "{{ container_names }}"
+
+# Stops the containers
+- name: Stopping slave containers
+  docker_container:
+    name: '{{ item }}'
+    state: stopped
+    stop_timeout: 100000
+  when: container_names|succeeded
+  with_items:
+    - '{{ container_name_list|default([]) }}'
+
+# Removes the containers
+- name: Removing slave containers
+  docker_container:
+    name: '{{ item }}'
+    state: absent
+  when: container_names|succeeded
+  with_items:
+    - '{{ container_name_list|default([]) }}'
+
+...

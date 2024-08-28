@@ -1,0 +1,53 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+ARG admin_user=null
+ARG admin_password=null
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+RUN apt-get update
+
+# Installation of dependencies for the different tools
+RUN apt-get install -y \
+            wget \
+            curl \
+            bash-completion \
+            python \
+            python-yaml \
+            curl \
+            gettext-base \
+            python-crypto \
+            python-paramiko \
+            perl \
+            libcgi-pm-perl \
+            debconf \
+            automake
+
+RUN wget -P /usr/src/scripts \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-com-ci-local/tools/pdi_plugin/pdi_plugin.tar.gz && \
+    tar -xzf /usr/src/scripts/pdi_plugin.tar.gz -C /usr/src/scripts/
+
+# copy scripts
+COPY scripts/gaskscripts /usr/src/scripts/gaskscripts
+COPY cirpa/cirpa-utils /cirpa-utils
+
+RUN cd /usr/src/scripts/PDI/config && \
+    ./install_PDI_on_ELX.bash
+
+ENV PATH /usr/src/scripts/PDI/LZN9011398_3-R17A/delivery/bin:$PATH
+
+# install the modules
+RUN bash /usr/src/scripts/gaskscripts/install.sh && \
+    apt-get install -y python-pip && \
+    pip install --upgrade pip
+RUN pip install /cirpa-utils && \
+    apt-get purge -y python-pip && \
+    apt-get clean -y && apt-get autoremove -y

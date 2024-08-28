@@ -1,0 +1,98 @@
+FROM armdocker.rnd.ericsson.se/baseimages/sles:11sp3
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# Clean Zypper Repositories
+RUN rm -rf /etc/zypp/repos.d/*
+
+# Add Zypper Repositories
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLE11-SP3-SDK-Pool/ SLE11-SP3-SDK-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLE11-SP3-SDK-Updates/ SLE11-SP3-SDK-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLES11-SP3-Updates/ SLES11-SP3-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE11/SLES11-SP3-Pool/ SLES11-SP3-Pool
+
+# Refresh repositories
+RUN zypper lr
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# extra packages
+RUN zypper install -y vim
+
+# Tools used at image creation time
+RUN zypper install -y wget
+
+# install syslog daemon
+RUN zypper install -y rsyslog
+RUN /etc/init.d/syslog start
+
+# install ssh
+RUN zypper install -y openssh
+
+# Compilation Tools
+RUN zypper install -y tar
+
+# COM Build Dependencies
+RUN zypper install -y net-snmp-devel
+
+# install packages needed for ft to run
+RUN zypper install -y openldap2
+RUN zypper install -y vsftpd
+RUN zypper install -y net-snmp
+RUN zypper install -y fuse
+RUN zypper install -y libfuse2
+RUN zypper install -y timezone
+RUN zypper install -y sudo
+RUN zypper install -y procinfo
+
+# Tools needed for LSB build
+RUN zypper install -y lsb
+
+# set the root password
+RUN echo "rootroot" | passwd root --stdin
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser" | passwd comuser --stdin
+
+# generate the sshd keys
+RUN rcsshd start
+
+# copy the sshd_config file to the image
+COPY sles11sp3/sut/sshd_config /sshd_config
+
+# Workaround for the below problem :
+# The problem is that loginuid once set can't be changed, and any
+# attempt to do so (eg by pam_loginuid.so writing to
+# /proc/self/loginuid) will fail.
+# references : https://github.com/lxc/lxc/issues/661#issuecomment-222444916
+#              https://lists.linuxcontainers.org/pipermail/lxc-devel/2013-November/006278.html
+#              https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=726661
+RUN sed -i '/pam.loginuid.so/ s/required/optional/' /etc/pam.d/sshd
+
+# modify the password authentication to yes to be able to connect to ssh session
+RUN sed -i '/PasswordAuthentication/ s/no/yes/' /etc/ssh/sshd_config
+
+# modify the /etc/sysconfig/openldap to start the ldap server as root
+RUN sed -i s/OPENLDAP_USER=\"ldap\"/OPENLDAP_USER=\"root\"/g /etc/sysconfig/openldap
+RUN sed -i s/OPENLDAP_GROUP=\"ldap\"/OPENLDAP_GROUP=\"root\"/g /etc/sysconfig/openldap
+RUN service ldap start
+
+# expose the ports needed for running ft remote tests
+EXPOSE 22
+
+# netconf
+EXPOSE 830
+EXPOSE 9830
+
+# Netconf TLS Proxy Port:
+EXPOSE 6513
+
+# start the ssh daemon
+CMD ["/usr/sbin/sshd", "-D", "-f", "/sshd_config"]

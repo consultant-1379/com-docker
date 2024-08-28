@@ -1,0 +1,21 @@
+; TODO : To handle Swarm Mode spawning of containers
+
+[server]
+seroius03136.sero.gic.ericsson.se
+
+[characteristics_lde_stc_135_sp5]
+214.4.217.135
+
+[high-load_lde_stc_136_sp5]
+214.4.217.136
+
+[characteristics_stc_137_sp5]
+214.4.217.137
+
+[high-load_stc_138_sp5]
+214.4.217.138
+
+
+[server:vars]
+jenkins_url="https://fem42s10-eiffel007.eiffel.gic.ericsson.se:8443/jenkins/"
+hardware_variants=["characteristics_lde_stc_135_sp5","characteristics_stc_137_sp5","high-load_lde_stc_136_sp5","high-load_stc_138_sp5"]

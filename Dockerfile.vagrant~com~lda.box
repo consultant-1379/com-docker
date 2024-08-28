@@ -1,0 +1,27 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/cba-com/vagrant/lda/box:latest
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+ARG admin_user=null
+ARG admin_password=null
+
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# Add pm producer to csm model for image creation
+RUN wget --quiet -P $CSM_REGISTRY/ --user $ADMIN_USER --password $ADMIN_PASSWORD "https://arm.sero.wh.rnd.internal.ericsson.com/artifactory/list/proj-com-ci-local/tools/coremw_pm_producer/4.7.0-0001/pmproducer-4.7.0-0001-deployment-sle-cxp9010005.tar.gz"
+
+RUN wget --quiet -P $CSM_REGISTRY/ --user $ADMIN_USER --password $ADMIN_PASSWORD "https://arm.sero.wh.rnd.internal.ericsson.com/artifactory/list/proj-com-ci-local/tools/coremw_pm_producer/4.7.0-0001/pmproducer-4.7.0-0001-runtime-sle-cxp9010005.tar.gz"
+
+# Add telnet to csm model for image creation
+RUN wget --quiet -P $CSM_REGISTRY/ --user $ADMIN_USER --password $ADMIN_PASSWORD "https://arm.sero.wh.rnd.internal.ericsson.com/artifactory/list/proj-com-ci-local/tools/telnet/1.0.0-9999/telnet-1.0.0-9999-deployment-cxp12345.tar.gz"
+
+RUN wget --quiet -P $CSM_REGISTRY/ --user $ADMIN_USER --password $ADMIN_PASSWORD "https://arm.sero.wh.rnd.internal.ericsson.com/artifactory/list/proj-com-ci-local/tools/telnet/1.0.0-9999/telnet-1.0.0-9999-runtime-cxp12345.tar.gz"
+
+# copy the build and comlib scripts
+COPY integration-lda-config/versions.xml $CSM_CONFIG/versions.xml

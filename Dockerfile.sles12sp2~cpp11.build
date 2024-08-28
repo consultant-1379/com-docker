@@ -1,0 +1,191 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/baseimages/sles:12sp2
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# Clean Zypper Repositories
+RUN rm -rf /etc/zypp/repos.d/*
+
+# Zypper repositories
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP2-SDK-Pool/ SLE12-SP2-SDK-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP2-SDK-Updates/ SLE12-SP2-SDK-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP2-Updates/ SLES12-SP2-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP2-Pool/ SLES12-SP2-Pool
+
+
+# Refresh repositories
+RUN zypper lr
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# Image Utility Tools
+RUN zypper install -y vim
+
+# Tools used at image creation time
+RUN zypper install -y wget
+
+# Compilation Tools
+RUN zypper install -y tar
+RUN zypper install -y make
+RUN zypper install -y gcc
+RUN zypper install -y gcc-c++
+RUN zypper install -y autoconf
+
+# COMSA Build Dependecies
+RUN zypper install -y rpm-build
+RUN zypper install -y bc
+
+# COM Build Dependencies
+RUN zypper install -y openldap2-devel
+RUN zypper install -y net-snmp-devel
+RUN zypper install -y fuse-devel
+RUN zypper install -y ncurses-devel
+RUN zypper install -y lttng-ust-devel
+RUN zypper install -y pam-devel
+
+# This package includes the validation for rpm spec
+RUN zypper install -y rpmlint
+
+# COM Unittest Dependecies
+RUN zypper install -y curl
+RUN zypper install -y libcurl-devel
+
+# COM Unittest runtime dependency
+# this package includes xmllint that is needed for the pm unittest binary
+RUN zypper install -y libxml2-tools
+
+# Tools used by the COM Build System
+RUN zypper install -y zip
+RUN zypper install -y patch
+RUN zypper install -y git
+
+# CppCheck result parsing dependencies
+RUN zypper install -y libxslt
+
+# Documentation regeneration dependencies
+RUN zypper install -y doxygen
+
+# FT Dependencies
+RUN zypper install -y java-1_7_1-ibm-devel
+
+# install python
+RUN zypper install -y python
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# Maven and its dependencies
+RUN wget --quiet -P /tmp/src/ http://apache.mirrors.spacedump.net/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+
+# Download, Compile and Install CMake 2.8.5
+RUN mkdir -p /tmp/src && \
+    wget --quiet -P /tmp/src/ --no-check-certificate https://cmake.org/files/v2.8/cmake-2.8.5.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cmake-2.8.5.tar.gz && \
+    cd /tmp/src/cmake-2.8.5 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Astyle 2.05.1
+RUN mkdir -p /tmp/src && \
+    wget --quiet -P /tmp/src/ http://sourceforge.net/projects/astyle/files/astyle/astyle%202.05.1/astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/astyle/build/gcc && \
+    make -j && \
+    install /tmp/src/astyle/build/gcc/bin/astyle /usr/bin/ && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install CppCheck 1.46
+RUN mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    wget --quiet http://sourceforge.net/projects/cppcheck/files/cppcheck/1.46/cppcheck-1.46.tar.gz && \
+    tar xzf cppcheck-1.46.tar.gz && \
+    cd /tmp/src/cppcheck-1.46/ && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+RUN mkdir -p /rpmbuild && chmod 777 /rpmbuild
+
+# Download, and install lcov 1.12 - this is used when running unit tests
+RUN mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    git clone https://github.com/linux-test-project/lcov.git && \
+    cd lcov && \
+    git checkout v1.12 && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Openssl 1.0.2k
+RUN mkdir -p /tmp/src && \
+    wget --quiet -P /tmp/src/ https://www.openssl.org/source/old/1.0.2/openssl-1.0.2k.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf openssl-1.0.2k.tar.gz && \
+    cd /tmp/src/openssl-1.0.2k/ && \
+    /tmp/src/openssl-1.0.2k/config --prefix=/usr --openssldir=/usr/local/openssl shared && \
+    make && \
+    make install && \
+    rm -rf /tmp/src
+
+# gcc installation dependencies
+RUN zypper install -y gmp-devel
+RUN zypper install -y mpfr-devel
+RUN zypper install -y mpc-devel
+
+# Download and install gcc 6.5.0
+RUN mkdir -p /tmp/src && \
+    mkdir -p /tmp/build && \
+    cd /tmp/src &&\
+    wget --quiet https://ftp.gwdg.de/pub/misc/gcc/releases/gcc-6.5.0/gcc-6.5.0.tar.gz && \
+    tar xf gcc-6.5.0.tar.gz && \
+    cd /tmp/build && \
+    /tmp/src/gcc-6.5.0/configure --prefix /gcc-6.5.0 --disable-multilib && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src /tmp/build
+
+ENV CC=/gcc-6.5.0/bin/gcc
+ENV CXX=/gcc-6.5.0/bin/g++
+
+# install function test python dependecies
+RUN wget --quiet https://bootstrap.pypa.io/get-pip.py && python get-pip.py
+RUN pip install jproperties --ignore-installed six
+
+# copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+
+# install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+RUN pip install /cirpa-utils
+
+# install pyyaml
+RUN pip install pyyaml

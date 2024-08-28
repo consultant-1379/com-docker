@@ -1,0 +1,23 @@
+- name: Update mirrors in build nodes
+  hosts: buildworkers
+  user: cbacomci
+  any_errors_fatal: true
+
+  tasks:
+    - name: Copy vault pass to host
+      copy:
+        src: /root/.vault_pass
+        dest: /tmp/.vault_pass
+
+    - name: Pull and start mirror update image
+      docker_container:
+        name: mirror_container
+        image: armdocker.rnd.ericsson.se/cba-com/update-mirrors
+        state: started
+        pull: true
+        recreate: yes
+        detach: false
+        command: python update-mirrors.py --vault-pass /tmp/.vault_pass --repo CBA/com CBA/com-main CBA/maf-main CBA/comea CBA/comsa-source CBA/com-vsftpd coremw-tools CBA/com-jenkins CBA/com-docker
+        volumes:
+          - /repo/jenkins/local-mirrors/:/mirrors/
+          - /tmp/.vault_pass:/tmp/.vault_pass

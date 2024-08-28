@@ -1,0 +1,50 @@
+#!/bin/bash -ex
+
+#Payload node is typically a diskless node that boots via PXE from one of the system controllers.
+
+#Download dependencies required for creating payload node
+apt-get install -y git \
+                   gcc \
+                   binutils \
+                   make \
+                   liblzma-dev \
+                   syslinux \
+                   genisoimage
+
+# [iPXE](http://ipxe.org/) is flexible network boot firmware which
+# supports booting from any adapter, among many other features.
+#Cloning the ipxe source code
+git clone git://git.ipxe.org/ipxe.git
+
+#Modify bootscript.ipxe so that netwrok boot will check all the adapters for booting payload
+cat > ipxe/src/bootscript.ipxe <<EOF
+#!ipxe
+:retry_boot
+autoboot || goto retry_boot
+EOF
+
+# Compile the code
+cd ipxe/src/
+make bin/ipxe.iso EMBED=bootscript.ipxe
+
+#Convert the ipxe.iso to hdd
+qemu-img convert -f raw -O qcow2 bin/ipxe.iso payload.qcow2
+
+mv payload.qcow2 box.img
+
+# metadat.json and Vagrantfile must be tared along with hdd to create vagrant compatible box
+cat > metadata.json <<EOF
+{"provider":"libvirt","format":"qcow2","virtual_size":1}
+EOF
+
+cat > Vagrantfile <<EOF
+Vagrant.configure("2") do |config|
+   config.vm.provider :libvirt do |libvirt|
+       libvirt.disk_bus = 'ide'
+   end
+end
+EOF
+
+tar -czf payload-node.box ./metadata.json ./Vagrantfile ./box.img
+
+mv payload-node.box /

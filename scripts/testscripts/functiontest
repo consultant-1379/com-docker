@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+
+import argparse
+import os
+
+from shutil import copyfile
+
+from cirpa.utils.shellhelper import call, execute, call_as_user
+from comlib.ftsuiteparser import FtSuiteParser
+from comlib.comtestproperties import ComTestProperties
+
+parser = argparse.ArgumentParser(description='Function test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--runtime-package', action="store", dest="runtimePackage", default=False, required=True)
+mandatoryArgs.add_argument('--test-package', action="store", dest="testPackage", default=False, required=True)
+mandatoryArgs.add_argument('--suite', action="store", dest="suite", default=None, required=True)
+
+# optional
+parser.add_argument('--sut-ip', action="store", dest="sutip")
+parser.add_argument("--valgrind", action="store_true")
+args = parser.parse_args()
+
+workdir = "/build/com-build/"
+if "fmcore" in args.runtimePackage:
+    workdir = "/build/fmcore-build/"
+# create the workdir
+
+# extract the test package
+print execute(["tar", "xf", args.testPackage])
+
+#create dist directory if it doesnot exists
+if not os.path.exists(os.path.join(workdir, "dist")):
+    os.makedirs(os.path.join(workdir, "dist"))
+
+# copy the runtime package to builddir/dist
+copyfile("/" + args.runtimePackage, os.path.join(workdir, "dist", args.runtimePackage))
+
+# find the full path for the test/pom.xml to use when running the mvn command
+testdir = execute(["find", "/src/", "-printf", "%p\\n"])
+
+for item in testdir.split("\n"):
+    if "test/pom.xml" in item:
+        testdir = item  # .rstrip("pom.xml")
+        break
+
+print testdir
+
+
+os.mkdir(os.path.join(workdir, "tmp"))
+
+propertyFilename = os.path.join(workdir, "com_test.properties")
+
+comTestProperties = ComTestProperties()
+
+comTestProperties.load(propertyFilename)
+
+if "com" in args.runtimePackage:
+    comTestProperties.setComRemoteHost("sut")
+else:
+    comTestProperties.setFmCoreRemoteHost("sut")
+
+comTestProperties.setStartport("27000")
+comTestProperties.setEndPort("28000")
+comTestProperties.setPorts("15")
+if args.valgrind:
+    comTestProperties.setValgrind("true")
+    if "VALGRINDPATH" in os.environ:
+        comTestProperties.setValgrindPath(os.environ["VALGRINDPATH"])
+
+comTestProperties.store(propertyFilename)
+
+
+p = FtSuiteParser()
+
+p.parse(os.path.join(workdir, "ft-suites.bash"))
+
+suiteFile = p.getSuiteFile(args.suite)
+
+suiteName = p.getName(args.suite)
+
+propertiesFile = "-Dprops=" + propertyFilename
+
+testDirectory = "--file=" + testdir
+
+execute(["chmod", "-R", "757", "/src", "/build"])
+if "com" in args.runtimePackage:
+    retval = call_as_user("comuser", ["mvn", "-B", testDirectory, suiteFile, suiteName, propertiesFile, "test"], True)
+else:
+    retval = call(["mvn", "-B", testDirectory, suiteFile, suiteName, propertiesFile, "test"], True)
+
+# Call jcat-result.sh to generate the FT report
+jcat_script_path = ""
+jcat_script_name = "jcat-result.sh"
+
+for root, dir, files in os.walk('/src'):
+    if jcat_script_name in files:
+        jcat_script_path = os.path.join(root, jcat_script_name)
+        break
+
+jcat_path =  os.path.join(workdir, "gen", "JCAT")
+report_html_path =  os.path.join(jcat_path, "ft-report.html")
+
+if "com" in args.runtimePackage:
+    retval = call_as_user("comuser", [jcat_script_path, "-v", "-h", jcat_path, ">", report_html_path])
+else:
+    retval = call_as_user("root", [jcat_script_path, "-v", "-h", jcat_path, ">", report_html_path])
+
+if (retval > 0):
+    print ("Warning: FT report generation failed")
+
+exit(retval)

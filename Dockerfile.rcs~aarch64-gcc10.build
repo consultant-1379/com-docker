@@ -1,0 +1,179 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/proj-lda/ldc_sles12sp5_build_image:latest
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+ARG admin_user=comadmin
+ARG admin_password=s6sumeThufrAXera
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+# Clean Zypper Repositories
+RUN rm -rf /etc/zypp/repos.d/*
+
+# Zypper repositories
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP5-SDK-Pool/ SLE12-SP5-SDK-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP5-SDK-Updates/ SLE12-SP5-SDK-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP5-Updates/ SLES12-SP5-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP5-Pool/ SLES12-SP5-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE-Module-Toolchain-Pool/ SLE-Module-Toolchain-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE-Module-Toolchain-Updates/ SLE-Module-Toolchain-Updates
+
+# Refresh repositories
+RUN zypper lr -d
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# Image Utility Tools
+RUN zypper install -y vim
+
+# Tools used at image creation time
+RUN zypper install -y wget
+
+# Compilation Tools
+RUN zypper install -y tar
+RUN zypper install -y make
+RUN zypper install -y autoconf
+RUN zypper install -y gcc10
+RUN zypper install -y gcc10-c++
+
+RUN rm /usr/bin/gcc
+RUN ln -s /usr/bin/gcc-10 /usr/bin/gcc
+RUN ln -s /usr/bin/g++-10 /usr/bin/g++
+
+RUN /usr/bin/gcc --version
+RUN /usr/bin/g++ --version
+
+# Tools used by the COM Build System
+RUN zypper install -y zip
+RUN zypper install -y patch
+
+# Tools used by RCS toolchain installation
+RUN zypper install -y python
+RUN zypper install -y which
+
+# CppCheck result parsing dependencies
+RUN zypper install -y libxslt
+
+# Documentation regeneration dependencies
+RUN zypper install -y doxygen
+
+# FT Dependencies
+RUN zypper install -y java-1_7_1-ibm-devel
+
+# COM Unittest Dependecies
+RUN zypper install -y curl
+RUN zypper install -y libcurl-devel
+
+#Install hostname required for the report generation
+RUN zypper install -y net-tools
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# Maven and its dependencies
+RUN wget -P /tmp/src/ http://apache.mirrors.spacedump.net/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+
+# Download, Compile and Install CMake 2.8.5
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ --no-check-certificate https://cmake.org/files/v2.8/cmake-2.8.5.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cmake-2.8.5.tar.gz && \
+    cd /tmp/src/cmake-2.8.5 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Astyle 2.05.1
+RUN mkdir -p /tmp/src && \
+    wget --no-check-certificate -P /tmp/src/ http://sourceforge.net/projects/astyle/files/astyle/astyle%202.05.1/astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/astyle/build/gcc && \
+    make -j && \
+    install /tmp/src/astyle/build/gcc/bin/astyle /usr/bin/ && \
+    rm -rf /tmp/src
+
+
+#Download cppcheck 1.58 for gcc10
+RUN mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    wget --no-check-certificate --quiet http://sourceforge.net/projects/cppcheck/files/cppcheck/1.58/cppcheck-1.58.tar.gz && \
+    tar xzf cppcheck-1.58.tar.gz && \
+    cd /tmp/src/cppcheck-1.58/ && \
+    make FILESDIR=/usr/bin && \
+    cp -rf cppcheck /usr/bin/. && \
+    rm -rf /tmp/src
+
+# Remove gcc-c++ as it is not needed
+RUN zypper remove -y -u gcc10-c++
+
+# Define arguments for RCS toolchain install
+ARG rcs_rstate=R1A10
+ARG rcs_major_version=2
+ARG rcs_product_number=CXA2010369_${rcs_major_version}
+ARG rcs_sdk_name=SDK-SCEE_${rcs_product_number}
+ARG rcs_link=https://arm2s10-eiffel146.eiffel.gic.ericsson.se:8443/nexus/content/repositories/releases/com/ericsson/${rcs_sdk_name}/${rcs_rstate}/${rcs_sdk_name}-${rcs_rstate}.cxa
+
+# Download and setup the RCS toolchain
+RUN wget -P /rcs-tools/ \
+    --user $ADMIN_USER \
+    --password $ADMIN_PASSWORD \
+    ${rcs_link} && \
+    cd /rcs-tools/ && \
+    tar xzf ${rcs_sdk_name}-${rcs_rstate}.cxa && \
+    cd /rcs-tools/${rcs_sdk_name} && \
+    ./install_sdk -y -d /rcs-tools/. 
+
+RUN source /rcs-tools/environment-setup-armv7at2hf-neon-wrsmllib32-linux-gnueabi
+RUN source /rcs-tools/environment-setup-cortexa72-wrs-linux
+RUN source /rcs-tools/env.sh
+COPY rcs/aarch64/build/toolchain.cmake /usr/src/toolchain.cmake
+
+# Set environment variables for RCS
+ENV CC /rcs-tools/sysroots/x86_64-wrlinuxsdk-linux/usr/bin/aarch64-wrs-linux/aarch64-wrs-linux-gcc
+ENV CXX /rcs-tools/sysroots/x86_64-wrlinuxsdk-linux/usr/bin/aarch64-wrs-linux/aarch64-wrs-linux-g++
+ENV SYSROOT /rcs-tools/sysroots/cortexa72-wrs-linux
+
+# Copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+
+# Install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# Install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+#RUN wget https://bootstrap.pypa.io/get-pip.py && python get-pip.py && \
+RUN wget https://bootstrap.pypa.io/pip/2.7/get-pip.py && python get-pip.py
+RUN pip install jproperties --ignore-installed six
+
+RUN pip install /cirpa-utils
+
+# Install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# install pyyaml
+RUN pip install pyyaml
+ENV PATH=/bin:$PATH
+

@@ -1,0 +1,9 @@
+#!/bin/sh
+
+ssh_command="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+if [ -z "$IDENTITY" ];
+then
+    $ssh_command "$@"
+else
+    $ssh_command -i "$IDENTITY" "$@"
+fi

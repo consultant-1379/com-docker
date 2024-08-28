@@ -1,0 +1,49 @@
+#cloud-config-for-all-hosts
+users:
+  - name: root
+timezone: Europe/Stockholm
+write_files:
+ - content: |
+     -----BEGIN RSA PRIVATE KEY-----
+     MIIEowIBAAKCAQEAliJTDuCzwdE3UcKtjGv1sSKhuLjP+JoZamN3VoY3bAZdIWBh
+     rO8P7c6xiZdex1zxkiBY5rjiyZ8OibohAcyhgme2+ggMZlMh8vyU77UszGLV6Q8G
+     KzpZsP85ZppVM+M9Hdejz0VqJc9wUI9Cmzf4Ia4TrzVJ+IWP64aYnT775fA0H4h5
+     THbmXYEs4QK+R6MHb0uEaYbIeGnn7MDXEWL+KlmSiC2Cl+reIEe9VMU4AzuFImEv
+     svnRNJjqrRSx76uwMHPF7r6lEo0krYD8EE63SgKYndwRMUXkbdL12d/lpGBzqdE3
+     16sUztCCKh9/RDkfNBC0X/G5pYFk6X+5FhOtjQIDAQABAoIBAHnESR1N/j16lKWJ
+     gfzcKx+J+SS7MGJviaGSHt5caWMCHlLNuyrpkj/MXo476TFFHuDnv3MSDU595Oqr
+     vc2ZzHzZ5bwQ/w2W63gKiDmK9lSm7NvjxZsV7lzyA/pFvkkhSxaDKWcY46jbADs2
+     lk0SLfwTFgAK9n3Mxhe+yNTwmpm45GR3715YnFD/8lW7utKuEaMYPyxc0FzQ238M
+     mDZbqHgaLewcGYFwte5zWQLZRhTjw7q4GJthN9oPPEZvVGDgeHKQx5wtw1vPR/hf
+     q7B5+Zx0ZT+t7ds9gEOaFi1UzI3PH1qDeDiVjQeP7AQHCdR1GcX71b+oLrvVjr/n
+     CEnFvQECgYEAxl6t7lBk07xVfipDVmBHD589l9rzrJHQ8clbnwGA7YIryLH4oGm7
+     PN3ZaZXMG5PgXOfU6sXErdvMd/z29KO42kAxpxk7Og7+CAFHwaFg+JNLsI9BTyo5
+     a3iSQzMm+Gia3uTAAwApGZxhGb6jrKuPQamR9dTTnQQsHwGWRTxX0i0CgYEAwcA3
+     Y+oRWN7up6UtijjTYRRZPQhY7QWPTHbUqN87Aa4DUbDI3iWLdWDc96PgNPVQgDB5
+     KW27vqm5h0OqwPJEVq4WZe+LB6N7hVIYUt621I7TpC1f1EZ4sdxhVV1HxBS7uLqw
+     bR+lUweHJ1zqGEx5+086mLDKTG0Q/HsWFBdQROECgYAzHHYIL2KrQ51rkowjF093
+     8Pm3xMyALFn/0nfu8j479Aw/+8sp2dRKjIbWM6iRenqWtY0gqLBSc42tZNpkkkKw
+     yVWBznh6Lx65BUtt0pzfr2QTK/YR5blBvaFB+04RNzKgN6RZoZL1bFuAfKRDezjA
+     HGblRl731/leS9RiJngiSQKBgDZscOKu+Cp3jKAoxM8DwVSOq7Z6JsiFfEglRP0e
+     n2uMXsBOoU3NTAwvpkIllTArDG7FrvMVMNyQvl2hg1BpfQrAIeiGTg5aPLMpaU21
+     47N3XznJyRZOqU6Esg6Rgjww+r4cKrysW/sjrTJAZj1nFgiiq7oCRwEKze+t/3ir
+     R8/hAoGBAI0f4a2Rajfwn9YlFah1sX1f5RYA+hfAtsA1FWd5z5qH1NVZAGvfg5SO
+     x3va+pzAJB0+Kkf8X1SXxQEzw0RfQ3BqeVaOT+x4dMLHXde8cbNHDcjpTd+AZSEb
+     zY1Boz4suBzy1iUShfx5pUmNt/BKzIs87y0jCq2kIRODq3qiLv3J
+     -----END RSA PRIVATE KEY-----
+   path: /root/.ssh/id_rsa
+   permissions: '0600'
+
+#cloud-config-specific-to-host
+hosts:
+ SC-1:
+  runcmd:
+   - ls -l /
+   - echo " SC-1"
+   - mkdir -p /storage/brf/backup/tmp
+   - scp -o 'StrictHostKeyChecking no' -r CONTAINER_IP:/configBackup.tar.gz /storage/brf/backup
+   - tar xf /storage/brf/backup/configBackup.tar.gz -C /storage/brf/backup/tmp
+   - echo " Contents of /storage/brf/backup/tmp/"
+   - ls -l /storage/brf/backup/tmp/
+   - ln -s /storage/brf/backup/tmp/config.tar.gz /storage/brf/backup/restore
+   - echo " Return code of symlink " $?

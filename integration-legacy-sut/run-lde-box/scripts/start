@@ -1,0 +1,139 @@
+#!/bin/bash -e
+#   This script creates a cluster using vagrant and installs required cba stack
+#
+#   Prerequisites:
+#       *   LDE box with user input version must exist in artifactory
+#
+#   The script will perform the following actions:
+#       1.  Create the cluster
+#       2.  Source DX Tools
+#       3.  Install required cba stack
+#
+#   Input arguments for running this script:
+#       1. TARGET (csm or legacy)
+#       2. CLUSTER _SIZE
+#       3. Version file path
+
+TARGET=$1
+CLUSTER_SIZE=$2
+SUITE=$3
+
+echo "Target is ${TARGET}"
+echo "Cluster size is ${CLUSTER_SIZE}"
+
+# Add username and password to ArtifactManager.cfg file
+sed -i 's/.*username =.*/username = '$ADMIN_USER'/' $AM_WORKSPACE/ArtifactManager.cfg
+sed -i 's/.*password =.*/password = '$ADMIN_PASSWORD'/' $AM_WORKSPACE/ArtifactManager.cfg
+
+# Start libvirt
+start-libvirt
+
+VMS="2VM"
+
+# validate function to verify if packages dowloaded correctly using checksum
+function curlDownloadValidate() {
+  packageName=$1
+  md5FileName=$2
+  md5Passed=$(cat $2)
+  md5Generated=$(md5sum $1 | cut -d ' ' -f 1)
+
+  if [ "$md5Passed" == "$md5Generated" ]; then
+      echo "Package md5sum validation successful"
+  else
+      echo "Error: Package md5sum validation failed"
+      exit 1
+  fi
+}
+
+# Create boxes directory
+mkdir -p /boxes
+if [ "$CLUSTER_SIZE" == "2+2" ]; then
+    VMS="4VM"
+    curl -u $CI_USER:$CI_PASSWORD -o /boxes/payload-node.box.md5 https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/payload-node.box.md5
+    curl -u $CI_USER:$CI_PASSWORD -o /boxes/payload-node.box https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/payload-node.box
+    curlDownloadValidate /boxes/payload-node.box /boxes/payload-node.box.md5
+
+    # Add the payload box to the local vagrant repository
+    set +e
+    vagrant box add /boxes/payload-node.box --name "payload" > /dev/null
+    set -e
+    ping 10.0.2.17 > /dev/null &
+    ping 10.0.2.18 > /dev/null &
+fi
+
+echo "Creation of cluster in progress..."
+
+if [ "$TARGET" == "legacy" ]; then
+    # Updating versionFile.xml for running it on legacy way
+    declare -x versionFile=$3
+    echo "Version File Path: ${versionFile}"
+    declare -x XSL=lde_version.xsl.template
+    declare -x VERSION_FILE=/tmp/$versionFile
+    declare -x LDE_VERSION_FILE=/tmp/ldeVersion.xml
+    declare -x ldews_version
+    declare -x ldews_condition="component[(name = 'ldews')]"
+    envsubst < $XSL > /tmp/version.xsl
+    xsltproc /tmp/version.xsl $versionFile > $VERSION_FILE
+
+    declare -x ldews_condition="component[not(name = 'ldews')]"
+    envsubst < $XSL > /tmp/ldeVersion.xsl
+    xsltproc /tmp/ldeVersion.xsl $versionFile > $LDE_VERSION_FILE
+
+    # Fetching ldews version from ldeVersionFile generated from versionFile
+    ldews_version=$(awk -F "[><]" '/version/{print $3}' $LDE_VERSION_FILE | sed '/^\s*$/d')
+
+    if ! ([[ $ldews_version =~ ^[0-9]{1}.[0-9]{1}.[0-9]{1}-[0-9]+$ ]]); then
+        ldews_version=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.ldews/ldews/latest?confidenceLevels=%5B$ldews_version=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*')
+    fi
+
+    # Create boxes directory
+    mkdir -p /boxes
+    BOX_NAME="ldews-$ldews_version-$VMS.box"
+    curl -u $CI_USER:$CI_PASSWORD -o /boxes/ldews-$ldews_version-$VMS.box https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/$ldews_version/$BOX_NAME
+    curl -u $CI_USER:$CI_PASSWORD -o /boxes/ldews-$ldews_version-$VMS.box.md5 https://arm.epk.ericsson.se/artifactory/proj-cba-vagrant-local/ldews/$ldews_version/$BOX_NAME.md5
+    curlDownloadValidate /boxes/ldews-$ldews_version-$VMS.box /boxes/ldews-$ldews_version-$VMS.box.md5
+
+    # Add the Vagrant box to the local vagrant repository
+    set +e
+    vagrant box add /boxes/$BOX_NAME --name "ldews" > /dev/null
+    set -e
+
+elif [ "$TARGET" == "csm" ]; then
+    # Add the Vagrant box to the local vagrant repository
+    set +e
+    vagrant box add /ldews-ict.box --name "ldews" > /dev/null
+    set -e
+fi
+
+# For some reason Vagrant doesn't understand that the VM:s has claimed an IP
+# even though they are up and running. But when you ping the nodes, Vagrant
+# understand it. This is a workaround.
+ping 10.0.2.15 > /dev/null &
+ping 10.0.2.16 > /dev/null &
+
+# Start the VM:s
+vm=${VMS:0:1}
+target=$TARGET vm=$vm vagrant up --provider=libvirt
+echo "Cluster prepared successfully"
+
+# set the IP Address of the cluster as environment variable
+declare -x IP_ADDRESS=10.0.2.15
+
+# Download dependency packages
+./downloadDepPackages $TARGET $SUITE
+
+if [ "$TARGET" == "legacy" ]; then
+    # Setup DX-Tools
+    for file in $(find /opt/dxtools/ -name source\*.bash)
+    do
+        source $file
+    done
+
+    # Restage the cluster
+    echo "Installation of CBA components from version.xml in progress..."
+    ./restage $IP_ADDRESS $TARGET $VERSION_FILE
+    echo "Installation of CBA components from version.xml completed successfully"
+elif [ "$TARGET" == "csm" ]; then
+    # Restage the cluster
+    ./restage $IP_ADDRESS $TARGET
+fi

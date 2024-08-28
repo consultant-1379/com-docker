@@ -1,0 +1,290 @@
+###########################
+# AVAILABLE CMAKE OPTIONS #
+###########################
+
+
+# pm
+# comversion
+# cba
+# toolchain
+# verifybuild
+# lsb
+# astyle
+# secacs
+# pt
+# cli
+# nc
+# ns
+# password
+# fm
+# valgrind
+# filem
+# accessmgmt
+# tlsproxy
+# comdepsdir
+# comdeveloper
+# stripdebuginfo
+# buildtype
+# heapmonitor
+# functiontest
+# unittest
+# systemname
+# systemversion
+# target
+# architecture
+# lsbversion
+# cflags
+# cxxflags
+# rootpath
+# opensslrootdir
+# netsnmprootdir
+# prebuilt
+# sysroot
+# cominstallprefix
+# rpm
+# sshdmanager
+# ft_psoinstallprefix
+# ft_startseparatesshd
+# ft_sshdport
+# ft_startport
+# ft_endport
+# ft_numports
+# ft_remoteinstalltype
+# ft_comusername
+# ft_comuserpassword
+# ft_rootusername
+# ft_rootuserpassword
+# ft_netsnmpversion
+# ft_netsnmptlssupport
+# ft_ipversion
+# ft_checkarchitecture
+# tlsd
+# fmcoredeveloper
+# fmcoreversion
+# useastyle
+
+#######################
+# CMAKE CONFIGURATION #
+#######################
+
+
+cba:
+    cba: 'on'
+    comdepsdir: 'dummy'
+    comdeveloper: 'on'
+    pt: 'on'
+cbaptoff:
+    cba: 'on'
+    comdepsdir: 'dummy'
+    comdeveloper: 'on'
+    pt: 'off'
+cbavalgrind:
+    cba: 'on'
+    comdeveloper: 'on'
+    valgrind: 'on'
+    comdepsdir: 'dummy'
+    pt: 'on'
+commainlsb:
+    comdeveloper: 'off'
+    functiontest: 'on'
+    systemname: 'Linux'
+    target: 'x86_64-dx-linux-gnu'
+    architecture: 'x86_64'
+    lsb: 'on'
+    lsbversion: '40'
+    cflags: '-DLSB_VERSION=4'
+    cxxflags: '-DLSB_VERSION=4'
+    opensslrootdir: '/cmake_3ppdir'
+    netsnmprootdir: '/cmake_3ppdir'
+    comdepsdir: 'dummy'
+    buildtype: 'Debug'
+    useretpoline: 'off'
+commain:
+    comdeveloper: 'on'
+    stripdebuginfo: 'on'
+    useencryption: 'on'
+    useauditshow: 'on'
+    securitylogging: 'on'
+commainrcsarm:
+    functiontest: 'off'
+    astyle: 'off'
+    rpm: 'off'
+    filem: 'off'
+    pm: 'off'
+    pt: 'off'
+    unittest: 'off'
+    accessmgmt: 'off'
+    tlsproxy: 'off'
+    tlsd: 'off'
+    sshdmanager: 'off'
+    secacs: 'off'
+    ft_startseparatesshd: 'on'
+    ft_sshdport: '9822'
+    ft_startport: '27000'
+    ft_endport: '28000'
+    ft_numports: '15'
+    ft_remoteinstalltype: 'TAR'
+    ft_comusername: 'root'
+    ft_comuserpassword: 'root'
+    ft_rootusername: 'root'
+    ft_rootuserpassword: 'root'
+    ft_netsnmpversion: '30'
+    ft_netsnmptlssupport: 'off'
+    toolchain: '/usr/src/toolchain.cmake'
+    comdepsdir: 'dummy'
+    buildtype: 'Debug'
+    useretpoline: 'off'
+commainrcsi686:
+    functiontest: 'off'
+    astyle: 'off'
+    rpm: 'off'
+    filem: 'off'
+    pm: 'off'
+    pt: 'off'
+    unittest: 'off'
+    accessmgmt: 'off'
+    tlsproxy: 'off'
+    tlsd: 'off'
+    sshdmanager: 'off'
+    secacs: 'off'
+    ft_netsnmpversion: '30'
+    ft_ipversion: '4'
+    ft_checkarchitecture: 'off'
+    ft_netsnmptlssupport: 'off'
+    toolchain: '/usr/src/toolchain.cmake'
+    comdepsdir: 'dummy'
+    buildtype: 'Debug'
+    useretpoline: 'off'
+commainrcsppc:
+    functiontest: 'on'
+    astyle: 'off'
+    rpm: 'off'
+    filem: 'off'
+    pm: 'off'
+    pt: 'off'
+    unittest: 'off'
+    accessmgmt: 'off'
+    tlsproxy: 'off'
+    tlsd: 'off'
+    sshdmanager: 'off'
+    secacs: 'off'
+    ft_startseparatesshd: 'on'
+    ft_sshdport: '9822'
+    ft_startport: '27000'
+    ft_endport: '28000'
+    ft_numports: '15'
+    ft_remoteinstalltype: 'TAR'
+    ft_comusername: 'root'
+    ft_comuserpassword: 'root'
+    ft_rootusername: 'root'
+    ft_rootuserpassword: 'root'
+    ft_netsnmpversion: '30'
+    ft_netsnmptlssupport: 'off'
+    toolchain: '/usr/src/toolchain.cmake'
+    comdepsdir: 'dummy'
+    buildtype: 'Debug'
+    useretpoline: 'off'
+commainrcsx64:
+    functiontest: 'off'
+    astyle: 'off'
+    rpm: 'off'
+    filem: 'off'
+    pm: 'off'
+    pt: 'off'
+    unittest: 'off'
+    accessmgmt: 'off'
+    tlsproxy: 'off'
+    sshdmanager: 'off'
+    secacs: 'off'
+    ft_netsnmpversion: '30'
+    ft_ipversion: '4'
+    ft_checkarchitecture: 'off'
+    ft_netsnmptlssupport: 'off'
+    toolchain: '/usr/src/toolchain.cmake'
+    comdepsdir: 'dummy'
+    buildtype: 'Debug'
+    useretpoline: 'off'
+commainrcsaarch64:
+    functiontest: 'off'
+    astyle: 'off'
+    rpm: 'off'
+    filem: 'off'
+    pm: 'off'
+    pt: 'off'
+    unittest: 'off'
+    accessmgmt: 'off'
+    tlsproxy: 'off'
+    sshdmanager: 'off'
+    secacs: 'off'
+    ft_netsnmpversion: '30'
+    ft_ipversion: '4'
+    ft_checkarchitecture: 'off'
+    ft_netsnmptlssupport: 'off'
+    toolchain: '/usr/src/toolchain.cmake'
+    comdepsdir: 'dummy'
+    buildtype: 'Debug'
+    useretpoline: 'off'
+commaincoverage:
+    comdeveloper: 'on'
+    coverage: 'on'
+    stripdebuginfo: 'on'
+commainvalgrind:
+    comdeveloper: 'on'
+    valgrind: 'on'
+comscalabilitynoaccessmgmt:
+    comdeveloper: 'on'
+    accessmgmt: 'off'
+comscalabilitynocli:
+    comdeveloper: 'on'
+    cli: 'off'
+comscalabilitynofm:
+    comdeveloper: 'on'
+    fm: 'off'
+comscalabilitynofilem:
+    comdeveloper: 'on'
+    filem: 'off'
+comscalabilitynonc:
+    comdeveloper: 'on'
+    nc: 'off'
+comscalabilitynons:
+    comdeveloper: 'on'
+    ns: 'off'
+comscalabilitynopassword:
+    comdeveloper: 'on'
+    password: 'off'
+comscalabilitynopm:
+    comdeveloper: 'on'
+    pm: 'off'
+comscalabilitynosubshell:
+    comdeveloper: 'on'
+    subshell: 'off'
+comscalabilitynotlsproxy:
+    comdeveloper: 'on'
+    tlsproxy: 'off'
+fmcore:
+    fmcoredeveloper: 'on'
+    stripdebuginfo: 'on'
+    astyle: 'off'
+    prebuilt: 'off'
+fmcorevalgrind:
+    fmcoredeveloper: 'on'
+    stripdebuginfo: 'on'
+    astyle: 'off'
+    prebuilt: 'off'
+    valgrind: 'on'
+fmcorecoverage:
+    fmcoredeveloper: 'on'
+    stripdebuginfo: 'on'
+    astyle: 'off'
+    prebuilt: 'off'
+    coverage: 'on'
+mafmain:
+    comdepsdir: '/'
+    useastyle: 'off'
+commainrcsaudit:
+    cba: 'on'
+    comdepsdir: 'dummy'
+    comdeveloper: 'on'
+    pt: 'on'
+    useauditlog: 'off'
+    usewrapping: 'off'

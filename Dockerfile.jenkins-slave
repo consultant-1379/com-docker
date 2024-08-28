@@ -1,0 +1,111 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+ARG admin_user=null
+ARG admin_password=null
+
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+ENV HOME /home/jenkins-slave
+ENV http_proxy http://www-proxy.ericsson.se:8080/
+ENV ftp_proxy http://www-proxy.ericsson.se:8080/
+ENV https_proxy http://www-proxy.ericsson.se:8080/
+ENV no_proxy 127.0.0.1,.ericsson.se,.ericsson.com,134.138.0.0/16,158.88.0.0/16
+
+RUN useradd -c "Jenkins Slave user" -d $HOME -m jenkins-slave && mkdir -p /usr/share/jenkins
+
+# Install docker
+# Instruction Manual: https://docs.docker.com/engine/installation/linux/ubuntulinux/
+
+# Update the apt sources with the docker repositories
+RUN apt-get update
+RUN apt-get -y install apt-transport-https ca-certificates curl gnupg2 software-properties-common
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+RUN apt-key fingerprint 0EBFCD88
+RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+RUN echo "apt-cache madison docker-ce" && apt-get update && apt-get install -y docker-ce=5:18.09.1~3-0~ubuntu-xenial docker-ce-cli=5:18.09.1~3-0~ubuntu-xenial containerd.io
+
+# Install the docker-engine
+RUN apt-get update && \
+    apt-get purge lxc-docker && \
+    apt-get install software-properties-common && \
+    add-apt-repository ppa:openjdk-r/ppa && \
+    apt-get update && \
+    apt-get install -y openjdk-11-jdk \
+            python \
+            wget \
+            xsltproc \
+            python-pip \
+            vim
+
+# copy jenkins slave python requirements
+COPY jenkins-slave/requirements.txt /
+
+# install CIRPA dependecies
+COPY cirpa /
+RUN apt-get update && \
+    apt-get install -y python-dev \
+                       build-essential \
+                       libssl-dev \
+                       libffi-dev
+RUN pip install pip==20.3.3
+RUN pip install -r /requirements.txt && \
+    apt-get purge -y python-dev \
+                  build-essential \
+                  libssl-dev \
+                  libffi-dev && \
+    apt-get autoremove -y
+
+# Copy necessary scripts and its dependencies to the image
+COPY jenkins-slave/* /
+RUN chmod +x wait-for-node-to-be-idle.groovy
+RUN chmod +x get-node-secret.groovy
+RUN ln -sfv /connect-slave.py /bin/connect-slave.py
+
+RUN wget --quiet -P /tmp/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/eiffel/content/repositories/proj-com-ci-local/tools/com-jenkins-dev-jar_files/slave.jar
+RUN wget --quiet -P /tmp/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/eiffel/content/repositories/proj-com-ci-local/tools/com-jenkins-dev-jar_files/jenkins-cli.jar 
+
+# copy the start scripts and set it up to run accordingly
+COPY scripts/comlib /usr/src/scripts/comlib
+COPY scripts/startscripts /usr/src/scripts/startscripts
+COPY scripts/templates /usr/src/scripts/templates
+COPY scripts/utils /usr/src/scripts/utils
+
+# Install dependencies for reboot_node script
+RUN apt-get install -y expect
+RUN apt-get install -y netcat
+
+# install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# setup the identity file
+RUN mv /id_rsa_jenkins /root/.id_rsa_jenkins
+ENV IDENTITY /root/.id_rsa_jenkins
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# setup trusted SSL certificate
+# there is no hard dependency on JENKINS_HOST variable as the connectivity is already
+# tested against other jenkins instances
+ARG JENKINS_HOST=fem42s10-eiffel007.eiffel.gic.ericsson.se
+ARG JENKINS_PORT=8443
+ARG KEYSTOREFILE=keyStore
+# TODO : find a way to encrypt the below password
+ARG KEYSTOREPASS=Passw0rd
+
+# create certificate
+RUN openssl s_client -connect ${JENKINS_HOST}:${JENKINS_PORT} </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > ${JENKINS_HOST}.cer
+RUN wget --quiet https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem
+# import and add certificate to keystore
+RUN keytool -import -noprompt -trustcacerts -alias ${JENKINS_HOST} -file DigiCertGlobalRootG2.crt.pem -keystore ${KEYSTOREFILE} -storepass ${KEYSTOREPASS}
+
+# including certificate flags for java
+ENV JAVA_TOOL_OPTIONS "-Djavax.net.ssl.trustStore=${KEYSTOREFILE} -Djavax.net.ssl.trustStorePassword=${KEYSTOREPASS} -Dtrust_all_cert=true"

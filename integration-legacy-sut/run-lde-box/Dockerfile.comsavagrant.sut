@@ -1,0 +1,68 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:14.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+ENV VAGRANTVERSION 1.9.1
+ENV DEBIAN_FRONTEND noninteractive
+
+ARG ci_user=null
+ARG ci_password=null
+ARG admin_user=null
+ARG admin_password=null
+
+ENV CI_USER=$ci_user
+ENV CI_PASSWORD=$ci_password
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y \
+        wget \
+        vim \
+        qemu \
+        qemu-kvm \
+        libvirt-bin \
+        ebtables \
+        dnsmasq \
+        libxslt-dev \
+        libxml2-dev \
+        libvirt-dev \
+        zlib1g-dev \
+        ruby-dev \
+        ssh \
+        openssh-client \
+        git \
+        make \
+        unzip \
+    # Shrink the layer
+    && apt-get clean all
+
+RUN cat /dev/zero | ssh-keygen -q -N ""
+
+ENV DOWNLOADS /tmp/downloads
+
+# Install Vagrant
+RUN mkdir -p $DOWNLOADS && \
+    wget -P $DOWNLOADS https://releases.hashicorp.com/vagrant/${VAGRANTVERSION}/vagrant_${VAGRANTVERSION}_x86_64.deb && \
+    dpkg -i $DOWNLOADS/vagrant_${VAGRANTVERSION}_x86_64.deb && \
+    rm -rf $DOWNLOADS
+
+RUN vagrant plugin install --plugin-version 0.0.35 vagrant-libvirt
+
+# Add scripts
+COPY scripts/start-libvirt /usr/local/bin
+RUN chmod 755 /usr/local/bin/start-libvirt
+COPY scripts/start /
+RUN chmod 755 /start
+
+# Add configuration files
+COPY config/ComsaVagrantfile /Vagrantfile
+COPY config/ArtifactManager.cfg /
+
+# Default start command
+CMD ["bash","/start"]

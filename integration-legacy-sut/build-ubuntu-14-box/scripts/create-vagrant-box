@@ -1,0 +1,13 @@
+#!/bin/bash
+
+cd $VAGRANT_DIR
+
+mkdir -p /work/
+cd /work/
+git clone https://github.com/chef/bento
+cd bento
+
+# Create Vagrant box
+packer build -only qemu -var "headless=true" ubuntu-14.04-amd64.json
+cp builds/ubuntu-14.04.libvirt.box /boxes
+vagrant box add builds/ubuntu-14.04.libvirt.box --name "trusty64"

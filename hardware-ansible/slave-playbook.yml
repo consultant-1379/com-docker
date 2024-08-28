@@ -1,0 +1,66 @@
+---
+# Playbook starts here
+# sets the host, jenkins-url and the harware-variants
+- name: Hardware-container jenkins slaves
+  hosts: server
+  user: cbacomci
+  any_errors_fatal: true
+  gather_facts: no
+
+  tasks:
+  # Starts the containers triggered by tag 'start'
+  - name: Start hardware-container slaves
+    vars:
+      hardware_type: '{{ outer_item }}'
+      hardware_list: '{{ vars["groups"][hardware_type] }}'
+      label: 'hardwareFT_{{ hardware_type }}'
+    include_role:
+      name: bringup-container-slaves
+    with_items: '{{ hardware_variants }}'
+    loop_control:
+      loop_var: outer_item
+    tags: start
+
+  # Stops the containers triggered by tag 'stop'
+  - name: Stop hardware-container slaves
+    include_role:
+      name: bringdown-container-slaves
+    tags: stop
+
+  # Stops the containers triggered by tag 'stop-characteristics'
+  - name: Stop characteristics hardware-container slaves
+    vars:
+      hardware_type: characteristics_lde_stc_135_sp5 
+    include_role:
+      name: bringdown-specific-container-slaves
+    tags: stop-characteristics_lde_stc_135_sp5
+
+  # Stops the containers triggered by tag 'stop-characteristics-sp2'
+  - name: Stop characteristics SP2 hardware-container slaves
+    vars:
+      hardware_type: characteristics_stc_137_sp5
+    include_role:
+      name: bringdown-specific-container-slaves
+    tags: stop-characteristics_stc_137_sp5
+
+
+  # Stops the containers triggered by tag 'stop-stability-sp2'
+  - name: Stop characteristics  SP5 hardware-container slaves
+    vars:
+      hardware_type: high-load_lde_stc_136_sp5
+    include_role:
+      name: bringdown-specific-container-slaves
+    tags: stop-high-load_lde_stc_136_sp5
+
+  # Stops the containers triggered by tag 'stop-characteristics'
+  - name: Stop characteristics hardware-container slaves
+    vars:
+      hardware_type: high-load_stc_138_sp5
+    include_role:
+      name: bringdown-specific-container-slaves
+    tags: stop-high-load_stc_138_sp5
+
+
+
+
+...

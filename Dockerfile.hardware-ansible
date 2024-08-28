@@ -1,0 +1,28 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# Avoid host key checks in known hosts file during ssh connection
+ENV ANSIBLE_HOST_KEY_CHECKING False
+
+# copy ansible project
+COPY hardware-ansible/ /
+
+# Install necessary python modules and ansible
+RUN apt-get update && \
+    apt-get install -y python python-pip
+RUN pip install pip==20.3.3
+
+RUN pip install -r requirements.txt && \
+    apt-get purge -y python-pip && \
+    apt-get clean -y && apt-get autoremove -y
+
+RUN apt-get update && apt-get install vim -y
+
+# Make script available as an inbuilt binary package
+RUN chmod +x /manage-slave.py
+RUN ln -sfv /manage-slave.py /bin/manage-slave.py

@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# Upload Vagrant box file (.box) into Artifactory: proj-cba-vagrant-local
+# Example usage:
+#
+#   upload-box lde-4.2.0-75-sh44.box 4.2.0-75
+
+BOX_FILE="$1"
+BOX_VERSION="$2"
+BOX_NAME="$(basename "$BOX_FILE" .box)"
+
+
+function panic { echo "Error:" "$@" >&2; exit 1; }
+
+USAGE="Usage: $0 FILENAME.box BOX_VERSION"
+
+if [[ $# == 0 ]]; then
+    panic "$USAGE"
+fi
+
+
+ARTIFACTORY_URL=https://arm.epk.ericsson.se/artifactory/
+PROJECT_URL=proj-cba-vagrant-local/ldews/$BOX_VERSION/
+
+if [[ "$BOX_FILE" == *.box ]]; then
+    set -x
+    curl \
+        --silent \
+        --user "$CI_USER:$CI_PASSWORD" \
+        --netrc \
+        --upload-file "$BOX_FILE" \
+        "$ARTIFACTORY_URL$PROJECT_URL$BOX_NAME.box;box_name=$BOX_NAME;box_provider=libvirt;box_version=$BOX_VERSION" \
+        -H"X-Checksum-Md5:$(md5sum "$BOX_FILE" | cut -d' ' -f1)" -H"X-Checksum-Sha1:$(sha1sum "$BOX_FILE" | cut -d' ' -f1)" \
+        -o /dev/null
+else
+    panic "Incorrect extension(.box) $BOX_FILE"
+fi

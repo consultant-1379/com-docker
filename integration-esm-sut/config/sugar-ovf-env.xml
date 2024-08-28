@@ -1,0 +1,14 @@
+<!-- Only disabling of LDE SUGaR and not for enabling Disable kernel module feature for BFU as COM version below 7.17 and LDE version from 4.17 installtion
+  is not supported-->
+<ProductSection xmlns="http://schemas.dmtf.org/ovf/envelope/1" xmlns:ovf="http://schemas.dmtf.org/ovf/environment/1">
+   <Category>config/initial/coremw.core/postinstall.conf</Category>
+   <Property ovf:key="managedElementNetworkName" ovf:type="string" ovf:userConfigurable="true" ovf:value="">
+      <Label>managedElementNetworkName</Label>
+      <Description/>
+   </Property>
+   <Category>config/initial/ldews.os/lde-nonroot.conf</Category>
+   <Property ovf:key="lde_runas_nonroot" ovf:type="string" ovf:userConfigurable="true" ovf:value="disabled">
+      <Label>lde_runas_nonroot</Label>
+      <Description/>
+   </Property>
+</ProductSection>

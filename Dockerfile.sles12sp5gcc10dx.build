@@ -1,0 +1,279 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/proj-lda/ldc_sles12sp5_build_image:latest
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+ARG admin_user=null
+ARG admin_password=null
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+# Environment variable required to enable UTF-8 encoding
+ENV LANG=en_US.UTF-8
+
+# Clean Zypper Repositories
+RUN rm -rf /etc/zypp/repos.d/*
+
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP5-SDK-Pool/ SLE12-SP5-SDK-Pool
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLE12-SP5-SDK-Updates/ SLE12-SP5-SDK-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP5-Updates/ SLES12-SP5-Updates
+RUN zypper ar -C -G -f https://arm.sero.gic.ericsson.se/artifactory/proj-suse-repos-rpm-local/SLE12/SLES12-SP5-Pool/ SLES12-SP5-Pool
+
+RUN zypper lr
+
+###############################################
+## Libraries and Tools from the Repositories ##
+###############################################
+
+# Compilation Tools
+RUN zypper install -y gcc-c++
+
+# COMSA Build Dependecies
+RUN zypper install -y rpm-build
+
+# COM Build Dependencies
+RUN zypper install -y openldap2-devel
+RUN zypper install -y net-snmp-devel=5.7.3
+RUN zypper install -y fuse-devel
+RUN zypper install -y ncurses-devel
+RUN zypper install -y lttng-ust-devel
+RUN zypper install -y pam-devel
+
+# This package includes the validation for rpm spec
+RUN zypper install -y rpmlint
+
+# COM Unittest Dependecies
+RUN zypper install -y libcurl-devel
+RUN zypper install -y psmisc
+
+# COM Unittest runtime dependency
+# this package includes xmllint that is needed for the pm unittest binary
+RUN zypper install -y libxml2-tools
+
+# CppCheck result parsing dependencies
+RUN zypper install -y libxslt
+
+# Documentation regeneration dependencies
+RUN zypper install -y doxygen
+
+# FT Dependencies
+#RUN zypper install -y java-1_7_1-ibm-devel
+RUN zypper install -y --auto-agree-with-licenses java-1_8_0-ibm-devel
+RUN export JAVA_HOME=/usr/lib64/jvm/java-1.8.0-ibm-1.8.0/jre
+# install python
+RUN zypper install -y python
+
+# install python-devel
+RUN zypper install -y python-devel
+
+# install libffi-devel
+RUN zypper install -y libffi-devel
+
+# install openssh
+RUN zypper install -y openssh
+
+# install syslog-service - COMEA UT dependency
+RUN zypper install -y syslog-service
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# install valgrind
+RUN cd /tmp/ && \
+    wget --quiet --no-check-certificate https://sourceware.org/pub/valgrind/valgrind-3.21.0.tar.bz2  && \
+    tar xjf valgrind-3.21.0.tar.bz2  && \
+    cd valgrind-3.21.0  && \
+    ./configure  --prefix=/usr && \
+    make  && \
+    make install && \
+    cd / && rm -rf /tmp/valgrind-3.21.0 && rm -rf /tmp/valgrind-3.21.0.tar.bz2
+
+# Maven and its dependencies
+RUN wget --quiet -P /tmp/src/ https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.3.9/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+
+# Download, Compile and Install CMake 2.8.5
+RUN mkdir -p /tmp/src && \
+    wget --quiet -P /tmp/src/ --no-check-certificate https://cmake.org/files/v2.8/cmake-2.8.5.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf cmake-2.8.5.tar.gz && \
+    cd /tmp/src/cmake-2.8.5 && \
+    ./configure && \
+    make -j && \
+    make install && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install Astyle 2.05.1
+RUN mkdir -p /tmp/src && \
+    wget --no-check-certificate -P /tmp/src/ http://sourceforge.net/projects/astyle/files/astyle/astyle%202.05.1/astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf astyle_2.05.1_linux.tar.gz && \
+    cd /tmp/src/astyle/build/gcc && \
+    make -j && \
+    install /tmp/src/astyle/build/gcc/bin/astyle /usr/bin/ && \
+    rm -rf /tmp/src
+
+# Download, Compile and Install CppCheck 1.46
+RUN mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    wget --no-check-certificate --quiet http://sourceforge.net/projects/cppcheck/files/cppcheck/2.11/cppcheck-2.11.tar.gz && \
+    tar xzf cppcheck-2.11.tar.gz && \
+    cd /tmp/src/cppcheck-2.11/ && \
+    make FILESDIR=/usr/bin && \
+    make install FILESDIR=/usr/bin && \
+    rm -rf /tmp/src
+
+RUN mkdir -p /rpmbuild && chmod 777 /rpmbuild
+
+# Download, and install lcov 1.12 - this is used when running unit tests
+run mkdir -p /tmp/src && \
+    cd /tmp/src/ && \
+    git clone https://github.com/linux-test-project/lcov.git && \
+    cd lcov && \
+    git checkout v1.12 && \
+    make install && \
+    rm -rf /tmp/src
+
+# install function test python dependecies
+RUN wget https://bootstrap.pypa.io/pip/2.7/get-pip.py && python get-pip.py
+RUN pip install jproperties --ignore-installed six
+
+# install pyyaml
+RUN pip install pyyaml
+
+# install ansible
+RUN pip install ansible
+
+# copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+COPY scripts/utils /usr/src/scripts/utils
+
+# install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+RUN pip install /cirpa-utils
+
+# Install Performance test dependency
+RUN wget --quiet -P /tmp/stress-tools \
+    --user $ADMIN_USER \
+    --password $ADMIN_PASSWORD \
+    "https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-com-ci-local/tools/com_stress_tool/com_stress_tool.tar.gz" && \
+    tar -xf /tmp/stress-tools/com_stress_tool.tar.gz && \
+    rm -rf /tmp/stress-tools
+
+# Install CodeChecker
+RUN wget --quiet -P /tmp/codechecker \
+    --user $ADMIN_USER \
+    --password $ADMIN_PASSWORD \
+    "https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-com-ci-local/tools/codechecker/codechecker-64bit-6.8.1.tar.gz" && \
+    tar -xf /tmp/codechecker/codechecker-64bit-6.8.1.tar.gz && \
+    rm -rf /tmp/codechecker
+
+ENV PATH "$PWD/CodeChecker/bin:$PATH"
+
+# Download saxon
+RUN wget --quiet -P /tmp/saxon \
+    --user $ADMIN_USER \
+    --password $ADMIN_PASSWORD \
+    "https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-com-ci-local/tools/saxon/saxon9807.tar.gz" && \
+    tar -xf /tmp/saxon/saxon9807.tar.gz && \
+    rm -rf /tmp/saxon
+
+RUN zypper install -y gnuplot
+RUN zypper install -y netcat
+RUN pip install pexpect
+RUN zypper install -y libfltk1
+RUN wget --quiet --user $ADMIN_USER --password $ADMIN_PASSWORD https://arm.rnd.ki.sw.ericsson.se/artifactory/list/proj-com-ci-local/tools/htmldoc/htmldoc-1.8.28-383.3.x86_64.rpm && \
+  rpm --install --nosignature htmldoc-1.8.28-383.3.x86_64.rpm
+
+# copy Valgrind Log Parser
+RUN mkdir -p /tools/valgrind_log_parser && \
+    cd /tools/valgrind_log_parser && \
+    wget --quiet --user $ADMIN_USER --password $ADMIN_PASSWORD https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-com-ci-local/valgrind_log_parser-1.0.0.tar.gz && \
+    tar -xzvf valgrind_log_parser-1.0.0.tar.gz && \
+    rm -rf valgrind_log_parser-1.0.0.tar.gz
+
+# Download cpt
+RUN CPT_VERSION=$(curl -s "https://x-ci.sero.wh.rnd.internal.ericsson.com//xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-cpt/latest?confidenceLevels=%5BcomponentRelease=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-cpt/$CPT_VERSION/dxtoolbox-cpt-$CPT_VERSION-runtime-linux-cxp9033332.tar.gz
+
+# Extract all the packages and ensure the source.bash script is always run
+RUN mkdir -p /opt/dxtools/ && \
+    cd /tmp/releases/ && \
+    for file in *.tar.gz; do tar xzf $file -C /opt/dxtools/; done && \
+    rm -rf /tmp/releases/
+
+# Source packages
+RUN echo "for file in \$(find /opt/dxtools/ -name source\*.bash); do source \$file; done" >> /etc/bash.bashrc
+
+RUN /bin/bash -c "for file in \$(find /opt/dxtools/ -name source\*.bash); do source \$file; done && env | grep ^PATH | cut -d\= -f2  > /opt/dxtools/envPath.txt" && \
+    envPath=$(cat /opt/dxtools/envPath.txt) && \
+    sed -i 's;"$;:'$envPath'";' /etc/environment
+
+#remove defaukt native gcc
+RUN zypper --non-interactive rm gcc-c++
+
+#get dx tool compiler
+RUN wget --quiet -P /tmp/releases/  \
+    --user $ADMIN_USER \
+    --password $ADMIN_PASSWORD \
+    "https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/dxtoolbox/dxtoolbox-native_compiler/1.0.0-9/dxtoolbox-native_compiler-1.0.0-9-runtime-linux-cxp9043014.tar.gz" && \
+    tar -xf /tmp/releases/dxtoolbox-native_compiler-1.0.0-9-runtime-linux-cxp9043014.tar.gz && \
+    rm /usr/bin/gcc
+
+#untar
+RUN mkdir -p /opt/dxtools/ && \
+    cd /tmp/releases/ && \
+    for file in *.tar.gz; do tar xzf $file -C /opt/dxtools/; done && \
+    rm -rf /tmp/releases/
+
+#set env and ld library path
+ENV PATH /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts:$PATH
+RUN rm /usr/lib64/libstdc++.so.6.0.25
+RUN rm /usr/lib64/libstdc++.so.6
+RUN cp /opt/dxtools/dxtoolbox-native_compiler/lib64/libstdc++.so.6.0.28 /usr/lib64/
+ENV LD_LIBRARY_PATH /opt/dxtools/dxtoolbox-native_compiler/lib64:$LD_LIBRARY_PATH
+
+#create softlinks for dx tool gcc binaries
+RUN rm /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts/gcc
+RUN rm /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts/g++
+RUN ln -s /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts/x86_64-dx-linux-gnu-gcc /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts/gcc
+RUN ln -s /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts/x86_64-dx-linux-gnu-g++ /opt/dxtools/dxtoolbox-native_compiler/wrapper_scripts/g++
+RUN ln -s /usr/lib64/libstdc++.so.6.0.28 /usr/lib64/libstdc++.so.6
+
+# copy and set rsa id files
+COPY build-image/id_rsa_gerrit /
+COPY build-image/ssh_git /
+
+RUN chmod 600 /id_rsa_gerrit
+RUN chmod +x /ssh_git
+
+ENV IDENTITY /id_rsa_gerrit
+ENV GIT_SSH /ssh_git
+ENV VALGRINDPATH /tools/valgrind_log_parser/valgrind_log_parser-1.0.0.jar
+ENV PATH=/bin:$PATH

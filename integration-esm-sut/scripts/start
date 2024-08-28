@@ -1,0 +1,178 @@
+#!/bin/bash
+
+#Validate the number of arguments passed to the script
+if [ $# -eq 1 ]; then
+   versionFile=$CSM_CONFIG/versionsBfu.xml
+elif [ $# -eq 2 ]; then
+   versionFile="$2"
+elif [ $# -eq 5 ]; then
+   KERNELMODULE=$3
+   LDESUGAR=$4
+   SECURITYALARMLOG=$5
+   versionFile="$2"
+else
+   echo "Improper Arguments"
+   exit 1
+fi
+
+CLUSTER_SIZE=$1
+
+# Function to retry AM command execution
+function executeAMCommandWithRetry() {
+    command=$1
+    set +e
+    set -o pipefail
+    # Maximum attemps to retry AM command due to connectivity issues
+    MAX_RETRY_ATTEMPTS=5
+    for ((retryLoop=1; retryLoop < $MAX_RETRY_ATTEMPTS; retryLoop++))
+    {
+        $command |& tee /tmp/am_log.txt
+        if [ $? -ne 0 ]; then
+            if grep -q "No connectivity to Artifactory" /tmp/am_log.txt; then
+                echo "Failed due to connectivity issue. Retrying again..."
+            else
+                echo "Error: Downloading of packages failed"
+                exit 1
+            fi
+        else
+            break
+        fi
+    }
+    set +o pipefail
+    set -e
+}
+
+# Determine the system.yml file to be used based on cluster size and BFU
+if [[ $versionFile =~ .*versionsBfu.* ]]; then
+    SYSTEM_YAML="$CSM_CONFIG/CBA-MW-Bfu-composed.yml"
+    CLUSTER_FILE="$CSM_CONFIG/initial/ldews.os/cluster.conf"
+elif [ $CLUSTER_SIZE == "2+2" ]; then
+    SYSTEM_YAML="$CSM_CONFIG/CBA-MW-composed-4VM.yml"
+    CLUSTER_FILE="$CSM_CONFIG/initial/ldews.os/cluster-4-nodes.conf"
+else
+    SYSTEM_YAML="$CSM_CONFIG/CBA-MW-composed.yml"
+    CLUSTER_FILE="$CSM_CONFIG/initial/ldews.os/cluster.conf"
+fi
+
+echo "Versions File path: ${versionFile}"
+echo "Cluster size is ${CLUSTER_SIZE}"
+echo "System yaml path:${SYSTEM_YAML}"
+
+# Setup DX-Tools
+for file in $(find /opt/dxtools/ -name source.bash);
+do
+    source $file;
+done
+
+# Add username and password to ArtifactManager.cfg file
+sed -i 's/.*username =.*/username = '$ADMIN_USER'/' $AM_WORKSPACE/ArtifactManager.cfg
+sed -i 's/.*password =.*/password = '$ADMIN_PASSWORD'/' $AM_WORKSPACE/ArtifactManager.cfg
+
+#Exit on error
+set -xe
+
+# Fetching ldews version from versionFile
+declare -x LDE_VERSION_FILE=/tmp/ldeVersion.xml
+declare -x XSL=/lde_version.xsl.template
+declare -x ldews_condition="component[not(name = 'ldews')]"
+envsubst < $XSL > /tmp/ldeVersion.xsl
+xsltproc /tmp/ldeVersion.xsl $versionFile > $LDE_VERSION_FILE
+LDE_VERSION=$(awk -F "[><]" '/version/{print $3}' $LDE_VERSION_FILE | sed '/^\s*$/d')
+# Check if lde version number is correct
+if ! ([[ $LDE_VERSION =~ ^[0-9]{1}.[0-9]+.[0-9]{1}-[0-9]+$ ]]); then
+    LDE_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.ldews/ldews/latest?confidenceLevels=%5B$LDE_VERSION=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*')
+fi
+
+WORKDIR=/work
+BINARY_REPO=$CSM_HOME/runtime-repo
+
+# Download deployment packages
+COMMAND_TO_EXECUTE="artifact_manager --get-packages --input $versionFile --flat --outputDir $CSM_REGISTRY --extract"
+executeAMCommandWithRetry "$COMMAND_TO_EXECUTE"
+
+# enable audit-d logging
+AUDIT_LOG_FILE=$CSM_REGISTRY"/ldews-"$LDE_VERSION"-deployment-sle-cxp9020284/csm/config/initial/ldews.os/audit-log.conf"
+sed -i 's/enable_auditd_cmd_logging=.*/enable_auditd_cmd_logging=true/' $AUDIT_LOG_FILE
+
+# Do CSM modelling
+csmcli import $SYSTEM_YAML
+
+csmcli import --rebase
+
+# Remove payload services based on cluster size
+if [ $CLUSTER_SIZE == "2+0" ]; then
+    csmcli function-remove-services ldews.base ldews.os.payload
+fi
+
+# Validate and generate the csm.yml file
+csmlint
+csmconfig init
+
+# Copy cluster.conf, ovf-env.xml and installation.conf to CSM_WORKSPACE
+cp -pR $CLUSTER_FILE $CSM_WORKSPACE/config/initial/ldews.os/cluster.conf
+cp -pR $CSM_CONFIG/initial/ldews.os/installation.conf $CSM_WORKSPACE/config/initial/ldews.os/installation.conf
+
+# Check whether LDE SUGaR feature should be disable and Disabling of Kernel Module Feature to be enabled.
+#    If true, then check if it is an BFU upgrade.
+#    If BFU upgrade, then only disable LDE SUGaR feature as enabling of Disable Kernel Module feature with COM version below 7.17 and LDE version fromm 4.17 installtion is not supported.
+# Else run jobs with LDE SUGaR feature enabled(by default) and Disable of Kernel Module feature disabled(by default).
+if [ $LDESUGAR == "disabled" ] && [ $KERNELMODULE == "enabled" ]; then
+    if [[ $versionFile =~ .*versionsBfu.* ]]; then
+        cp -p $CSM_CONFIG/sugar-ovf-env.xml $CSM_WORKSPACE/ovf-env.xml
+    else
+        cp -p $CSM_CONFIG/csm-ovf-env.xml $CSM_WORKSPACE/ovf-env.xml
+    fi
+else
+    cp -p $CSM_CONFIG/ovf-env.xml $CSM_WORKSPACE
+fi
+
+#Enabling the securityalarmlogging
+if [ $SECURITYALARMLOG == "true" ]; then
+    CSMYML=$CSM_WORKSPACE/csm.yml
+    sed -i 's/DISABLE_ALARM_ALERT_EVENTS: false/DISABLE_ALARM_ALERT_EVENTS: true/' $CSMYML
+fi
+
+# Temporary output directories
+IMAGES=$WORKDIR/images
+KVM_ETC=$WORKDIR/etc
+mkdir -p $IMAGES
+mkdir -p $KVM_ETC
+
+# Temporary working directories
+FOR_ICT=$WORKDIR/for-ict
+CSM_TMP=$WORKDIR/csm-tmp
+mkdir -p $FOR_ICT
+mkdir -p $CSM_TMP
+
+# Generate software baseline definition file
+csm2am init $CSM_TMP
+
+# Download runtime packages
+COMMAND_TO_EXECUTE="artifact_manager --get-packages --input $CSM_TMP/version.xml --outputDir $BINARY_REPO --flat"
+executeAMCommandWithRetry "$COMMAND_TO_EXECUTE"
+
+# Copy deployment packages to binary repo
+cp -pr $CSM_REGISTRY/* $BINARY_REPO
+
+#copy vagrant post install script
+cp -p /ict_vagrant_post_blade_install /root/.csm/runtime-repo/ldews-${LDE_VERSION}-deployment-sle-cxp9020284/ict/post-installation/
+
+# Create installation media
+csm2ict create --repo-dir $BINARY_REPO $VOL_ROOT --output $FOR_ICT
+
+# Make config drive iso
+DRIVE_TMP_DIR=$WORKDIR/config-drive
+mkdir -p $DRIVE_TMP_DIR
+cp -p $CSM_WORKSPACE/ovf-env.xml $DRIVE_TMP_DIR
+mkisofs -R -V "OVF ENV" -joliet -o $IMAGES/configdrive.iso $DRIVE_TMP_DIR
+
+# Starting libvirt
+start-libvirt
+
+# Start packer to build vagrant box
+#TODO: Investigate why packer logs is consuming too much space
+#export PACKER_LOG=1
+export PACKER_KEY_INTERVAL=10ms
+packer build -only qemu /packer-ldews.json
+
+cp -p /work/images/configdrive.iso /

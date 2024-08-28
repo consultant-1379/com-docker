@@ -1,0 +1,32 @@
+#$OpenBSD: sshd_config,v 1.80 2008/07/02 02:24:18 djm Exp $
+
+# This is the sshd server system-wide configuration file.  See
+# sshd_config(5) for more information.
+
+# This sshd was compiled with PATH=/usr/bin:/bin:/usr/sbin:/sbin
+
+# The strategy used for options in the default sshd_config shipped with
+# OpenSSH is to specify options with their default value where
+# possible, but leave them commented.  Uncommented options change a
+# default value.
+
+Port 22
+# Netconf
+Port 830
+Port 9830
+
+Protocol 2
+
+UsePAM yes
+
+PermitRootLogin yes
+
+# override default of no subsystems
+Subsystem sftp /usr/lib64/ssh/sftp-server
+Subsystem netconf /opt/com/bin/netconf
+Subsystem cli /opt/com/bin/cliss
+
+# This enables accepting locale enviroment variables LC_* LANG, see sshd_config(5).
+AcceptEnv LANG LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES
+AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
+AcceptEnv LC_IDENTIFICATION LC_ALL

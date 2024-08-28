@@ -1,0 +1,15 @@
+#!/bin/bash
+
+IMAGE=$USER-vagrant-build-lde-box
+CONTAINER_NAME=$IMAGE
+
+docker rm -f $CONTAINER_NAME
+
+# Exit on error
+set -e
+
+CURRENT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+docker build -t $IMAGE build-lde-box/
+# TODO: Find a way to check for free port
+docker run -itd --privileged --cap-add=ALL --device /dev/kvm:/dev/kvm:rw -v $CURRENT_DIR/boxes:/boxes --name $CONTAINER_NAME -p 8090:8090 $IMAGE $@

@@ -1,0 +1,227 @@
+# Base Image
+FROM armdocker.rnd.ericsson.se/cba-com/comsavagrant/sut:latest
+
+# User credentials.
+ARG ci_user=null
+ARG ci_password=null
+ARG admin_user=null
+ARG admin_password=null
+
+ENV CI_USER=$ci_user
+ENV CI_PASSWORD=$ci_password
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+RUN apt-get update
+
+# Installation of dependencies for the different tools
+# Required for comsa Testing
+RUN apt-get install -y \
+            cmake \
+            jython \
+            ant \
+            autoconf \
+            git \
+            tcsh \
+            bc \
+            make && \
+# Requried by DX tools
+    apt-get install -y \
+            tar \
+            openjdk-7-jdk \
+            bash-completion \
+            python \
+            python-yaml \
+            curl \
+            gettext-base \
+            python-crypto \
+            python-paramiko \
+            rpm \
+            libxml2-utils && \
+    # Required by restage scripts
+    apt-get install -y \
+            xsltproc \
+            expect && \
+    # Installation of non tool related packages
+    apt-get install -y \
+            wget \
+            openssh-client &&\
+    #LFTP dependencies
+    apt-get install -y \
+            gcc \
+            g++ \
+            libncurses-dev \
+            libreadline6-dev \
+            lib32bz2-1.0 \
+            lib32z1 \
+            libgnutls-dev &&\
+    #Clean the unwanted repositories
+    apt-get clean all
+
+# create the comuser
+RUN useradd -m comuser
+RUN echo "comuser:comuser" | chpasswd
+RUN usermod -aG libvirtd "comuser"
+
+# Download, Compile and Install Lftp 4.8.3
+RUN mkdir -p /tmp/src && \
+    wget -P /tmp/src/ http://lftp.yar.ru/ftp/lftp-4.8.3.tar.gz && \
+    cd /tmp/src/ && \
+    tar xzf lftp-4.8.3.tar.gz && \
+    cd lftp-4.8.3 && \
+    ./configure && \
+    make && \
+    make install && \
+    rm -rf /tmp/src
+
+#####################################################
+## Custom Libraries and Tools compiled from source ##
+#####################################################
+
+# Maven and its dependencies
+RUN wget -P /tmp/src/ http://apache.mirrors.spacedump.net/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz && \
+    cd /opt/ && \
+    tar xzf /tmp/src/apache-maven-3.3.9-bin.tar.gz
+
+ENV PATH /opt/apache-maven-3.3.9/bin:$PATH
+ENV PATH /usr/bin/tcsh:$PATH
+
+# install function test python dependecies
+RUN wget https://bootstrap.pypa.io/get-pip.py && python get-pip.py
+RUN pip install jproperties --ignore-installed six
+# install pyyaml
+RUN pip install pyyaml
+
+# Create boxes directory
+RUN mkdir -p /boxes
+
+# Download CSPT
+RUN CSPT_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-cspt/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet  -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-cspt/$CSPT_VERSION/dxtoolbox-cspt-$CSPT_VERSION-runtime-linux-cxp9023643.tar.gz
+
+# Download Artifactory Manager
+RUN AM_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-am/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/dxtoolbox/dxtoolbox-am/$AM_VERSION/dxtoolbox-am-$AM_VERSION-runtime-linux-cxp9026463.tar.gz
+
+# Download sdpt
+RUN SDPT_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-sdpt/latest" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-sdpt/$SDPT_VERSION/dxtoolbox-sdpt-$SDPT_VERSION-runtime-cxp9022995.tar.gz
+
+# Download amfcgscli
+# TODO: Pick AMFCGSCLI using CL in later stages
+RUN AMFCGSCLI_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-amfcgscli/latest" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-amfcgscli/$AMFCGSCLI_VERSION/dxtoolbox-amfcgscli-$AMFCGSCLI_VERSION-runtime-linux-cxp9033540.tar.gz
+
+# Download cpt
+RUN CPT_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-cpt/latest" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-cpt/$CPT_VERSION/dxtoolbox-cpt-$CPT_VERSION-runtime-linux-cxp9033332.tar.gz
+
+# Download addons
+RUN ADDONS_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-addons/latest" | grep -oP 'version\":"\K[^"]*' ) && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-addons/$ADDONS_VERSION/dxtoolbox-addons-$ADDONS_VERSION-runtime-linux-cxp9033818.tar.gz
+
+# Download csmt
+RUN CSMT_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-csmt/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-all/com/ericsson/cba/dxtoolbox/dxtoolbox-csmt/$CSMT_VERSION/dxtoolbox-csmt-$CSMT_VERSION-runtime-linux-cxp9029274.tar.gz
+
+# Download AIT Agents
+RUN AIT_AGENTS_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-ait_agents/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/dxtoolbox/dxtoolbox-ait_agents/$AIT_AGENTS_VERSION/dxtoolbox-ait_agents-$AIT_AGENTS_VERSION-runtime-linux-cxp9020536.tar.gz
+
+# Download AIT Dev
+RUN AIT_DEV_VERSION=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.dxtoolbox/dxtoolbox-ait_dev/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*') && \
+    wget --quiet -P /tmp/releases/ \
+         --user $ADMIN_USER \
+         --password $ADMIN_PASSWORD \
+         https://arm.rnd.ki.sw.ericsson.se/artifactory/proj-cba-dev-local/com/ericsson/cba/dxtoolbox/dxtoolbox-ait_dev/$AIT_DEV_VERSION/dxtoolbox-ait_dev-$AIT_DEV_VERSION-runtime-cxp9019388.tar.gz
+
+# Extract all the packages and ensure the source.bash script is always run
+RUN mkdir -p /opt/dxtools/ && \
+    cd /tmp/releases/ && \
+    for file in *.tar.gz; do tar xzf $file -C /opt/dxtools/; done && \
+    rm -rf /tmp/releases/
+
+# Install AIT packages install scripts to generate bash file
+RUN cd /opt/dxtools/ && \
+    for file in $(find . -name install_\*.sh); do ./$file .; done
+
+# Source AM and AIT packages
+RUN echo "for file in \$(find /opt/dxtools/ -name source\*.bash); do source \$file; done" >> /etc/bash.bashrc
+
+RUN /bin/bash -c "for file in \$(find /opt/dxtools/ -name source\*.bash); do source \$file; done && env | grep ^PATH | cut -d\= -f2  > /opt/dxtools/envPath.txt" && \
+    envPath=$(cat /opt/dxtools/envPath.txt) && \
+    sed -i 's;"$;:'$envPath'";' /etc/environment
+
+# Download valgrind
+RUN mkdir -p /home/comsaci/comsa/tools/valgrind_sles12 && \
+    cd /home/comsaci/comsa/tools/valgrind_sles12  && \
+    wget --quiet https://cbs.centos.org/kojifiles/packages/valgrind/3.13.0/4.el7/x86_64/valgrind-3.13.0-4.el7.x86_64.rpm
+
+# Download tspsaf
+RUN cd /home && \
+    wget --quiet --user $ADMIN_USER --password $ADMIN_PASSWORD "https://arm.rnd.ki.sw.ericsson.se/eiffel/content/repositories/proj-com-ci-local/tools/tspsaf/tspsaf.tar.gz" && \
+    tar -xf tspsaf.tar.gz && \
+    cd / && rm -rf /home/tspsaf.tar.gz
+
+# copy the build and comlib scripts
+COPY scripts/buildscripts /usr/src/scripts/buildscripts
+COPY scripts/testscripts /usr/src/scripts/testscripts
+COPY scripts/comlib /usr/src/scripts/comlib
+COPY integration-legacy-sut/run-lde-box/scripts/* /
+
+# Artifactory Manager environment variables
+ENV AM_HOME /opt/dxtools/.am/
+ENV AM_WORKSPACE $AM_HOME/workspace/
+ENV AM_CACHE $AM_HOME/cache/
+
+# Add the config files
+# TODO: Change the directory naming to integration-legacy
+COPY integration-legacy-sut/run-lde-box/config/ArtifactManager.cfg $AM_WORKSPACE/
+
+# install the comlib module
+RUN pip install /usr/src/scripts/comlib/
+
+# install the build script
+RUN bash /usr/src/scripts/buildscripts/install.sh
+
+# install the test scripts
+RUN bash /usr/src/scripts/testscripts/install.sh
+
+# install CIRPA dependecies
+COPY cirpa/cirpa-utils /cirpa-utils
+RUN pip install /cirpa-utils
+
+# alternate mappings for "page up" and "page down" to search the history
+# TODO: Remove at final build
+RUN sed -i 's/.*history-search-backward.*/"\\e[5~": history-search-backward/g' /etc/inputrc
+RUN sed -i 's/.*history-search-forward.*/"\\e[6~": history-search-forward/g' /etc/inputrc

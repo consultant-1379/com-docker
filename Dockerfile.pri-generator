@@ -1,0 +1,62 @@
+FROM armdocker.rnd.ericsson.se/dockerhub-ericsson-remote/java:8
+
+ARG admin_user=null
+ARG admin_password=null
+ENV ADMIN_USER=$admin_user
+ENV ADMIN_PASSWORD=$admin_password
+
+RUN echo "deb [check-valid-until=no] http://archive.debian.org/debian jessie-backports main" > /etc/apt/sources.list.d/jessie-backports.list
+RUN sed -i '/deb http:\/\/deb.debian.org\/debian jessie-updates main/d' /etc/apt/sources.list
+RUN apt-get -o Acquire::Check-Valid-Until=false update
+
+# install PET
+# Do not purge curl as it is used by generator script
+RUN wget --quiet --user $ADMIN_USER --password $ADMIN_PASSWORD https://arm.sero.gic.ericsson.se/artifactory/simple/proj-cicd-release/com/ericsson/cba/cicd/pet/pet2/1.3.0/pet2-1.3.0.tar.gz && \
+    tar -xvf pet2-1.3.0.tar.gz && \
+    cd pet2-1.3.0/
+
+ENV PATH=/pet2-1.3.0/bin:$PATH
+
+# install git v 2.7.4 from source
+RUN apt-get -o Acquire::Check-Valid-Until=false install -y wget \
+                       make \
+                       gcc \
+                       sed \
+                       build-essential \
+                       libcurl4-gnutls-dev \
+                       libexpat1-dev \
+                       gettext \
+                       libz-dev \
+                       libssl-dev \
+                       git && \
+                     apt-get purge -y make \
+                     gcc \
+                     build-essential \
+                     libcurl4-gnutls-dev \
+                     libexpat1-dev \
+                     gettext \
+                     libz-dev \
+                     libssl-dev && \
+    apt-get clean -y && apt-get autoremove -y
+
+# copy scripts
+COPY scripts/comlib /usr/src/scripts/comlib
+COPY scripts/generatorscripts /usr/src/scripts/generatorscripts
+COPY cirpa/cirpa-utils /cirpa-utils
+COPY scripts/generatorscripts/config.yaml /pet2-1.3.0/config.yaml
+COPY scripts/generatorscripts/flow.yaml /pet2-1.3.0/flow.yaml
+COPY scripts/generatorscripts/template.html /pet2-1.3.0/template.html
+COPY scripts/generatorscripts/html_flow.yaml /pet2-1.3.0/html_flow.yaml
+
+# install function test python dependecies
+RUN wget https://bootstrap.pypa.io/pip/2.7/get-pip.py && python get-pip.py
+RUN pip install jproperties --ignore-installed six
+
+
+# install the modules
+
+RUN bash /usr/src/scripts/generatorscripts/install.sh && \
+    pip install /cirpa-utils \
+                /usr/src/scripts/comlib/ && \
+    apt-get purge -y python-pip && \
+    apt-get clean -y && apt-get autoremove -y

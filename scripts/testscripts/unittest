@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+import os
+
+from shutil import copyfile
+
+from cirpa.utils.shellhelper import call, execute
+
+valgrind_suppression_file = None
+parser = argparse.ArgumentParser(description='Unit test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--package', action="store", dest="package", default=False, required=True)
+mandatoryArgs.add_argument('--work-dir', action="store", dest="workdir", default=False, required=True)
+
+# optional
+parser.add_argument('--test', action="store", dest="test", default=None)
+parser.add_argument('--valgrind', action="store", dest="valgrind", default=None)
+parser.add_argument('--coverage', action="store", dest="coverage", default=None)
+
+args = parser.parse_args()
+
+# create the workdir
+os.mkdir(args.workdir)
+print execute(["chmod", "777", args.workdir])
+
+# change the working dir to the value of args.workdir
+os.chdir(args.workdir)
+
+# copy the package to the workdir
+copyfile("/" + args.package, os.path.join(args.workdir, args.package))
+
+# Valgrind and coverage unittest requirements
+if args.coverage:
+    print execute(["tar", "xf", "/" + args.coverage, "-C", "/"])
+if args.valgrind:
+    print execute(["tar", "xf", "/" + args.valgrind, "-C", "/"])
+    print execute(["mkdir", "/templates"])
+
+    suppressionFileName = "valgrind_suppressions.txt"
+    suppressionFilePath = ""
+    for root, dir, files in os.walk('/src'):
+        if suppressionFileName in files and "templates" in root:
+            suppressionFilePath = os.path.join(root, suppressionFileName)
+            break
+
+    print execute(["cp", suppressionFilePath, "/templates/"])
+
+# extract the package
+print execute(["tar", "xf", args.package])
+
+# add extra parameters
+runParams = ""
+if args.test is not None:
+    runParams = runParams + " -t " + args.test
+if args.valgrind is not None:
+    runParams = runParams + " --valgrind"
+if args.coverage is not None:
+    runParams = runParams + " --coverage"
+
+# start the tests
+retval = call(["su", "-c", "/bin/bash unittest.sh" + runParams, "comuser"])
+
+sys.exit(retval)

@@ -1,0 +1,108 @@
+COM docker files
+
+Content
+1. The docker files
+1.1 Production ready images
+1.2 Naming convention
+1.3 label section
+1.4 Example of a Dockerfile
+
+2. The build script
+2.1 Building an image
+2.1.1 Example build command
+2.1.2 Build and push
+
+
+
+1. The docker files
+-------------------
+All docker files should work with the default docker build command.
+
+Example "docker build -t my-image -f Dockerfile.my-image ." should be sufficient
+to build an image.
+
+1.1 Production ready images
+---------------------------
+To build production ready images an "build" script is needed (see section 2.) to ensure image names
+tags and registry urls are correct.
+This build script can and should be used when modifying the docker files to ensure
+that no strange dependencies which is NOT supported by the image strategy is added by mistake.
+
+
+1.2 Naming convention
+---------------------
+The names of the docker files should be: Dockerfile.<PATH>.<IMAGE NAME> or Dockerfile.<IMAGE NAME>
+The <IMAGE NAME> is directly mapped to the folder where all dependencies for the Dockerfile are located
+The <PATH> is used to support a more advanced folder structure for the dependencies
+e.g.
+    Dockerfile.sles12.sut
+           sles12/
+                sut/
+                  image-dep
+
+    Artifactory docker registry URL
+    armdocker.rnd.ericsson.se/cba-com/sle12/sut:latest
+
+The <PATH> can contain several tilde "~" separated segments.
+e.g.
+
+    Dockerfile.folder1~folder2~folder3.image-name
+
+           folder1/
+                folder2/
+                    folder3/
+                        image-name/
+                            image-dep1
+                            image-dep2
+
+    Artifactory docker registry URL
+    armdocker.rnd.ericsson.se/cba-com/folder1/folder2/folder3/image-name:latest
+
+    Dockerfile.sles12~gcc~5.2.0.build
+           sles12/
+                gcc/
+                    5.2.0/
+                        build/
+
+    Artifactory docker registry URL
+    armdocker.rnd.ericsson.se/cba-com/sle12/gcc/5.2.0/build:latest
+
+1.3 label section
+-----------------
+The labels section of the Dockerfile is used to add the commit hash and the
+repo clone url. This is only mandatory if the image are supposed to be a
+production image.
+
+1.4 Example of a Dockerfile
+---------------------------
+
+    FROM ubuntu:16.04
+    ARG COMMIT=null
+    ARG REPOSITORY=null
+
+    LABEL commit=$COMMIT
+    LABEL repository=$REPOSITORY
+
+    CMD ["echo","hello world!"]
+
+
+2. The build script
+-------------------
+The build script is the official way to build production ready images.
+The scripts supports just build of the image, or build and push of the image to the ARM registry.
+
+To get more information of all options for the build script run ./build --help
+
+2.1 Building an image
+---------------------
+To build an image you have to stand in the root folder where the build script and the Dockerfile is located.
+
+2.1.1 Example build command
+---------------------------
+This will create an image named $USER/jenkins-slave:<git hash>
+    # ./build -f Dockerfile.jenkins-slave
+
+2.1.2 Build and push
+------------------
+This will build an image and push it to armdocker
+    # ./build -f Dockerfile.jenkins-slave --push

@@ -1,0 +1,69 @@
+#!/usr/bin/env python
+
+import argparse
+import sys
+import os
+from shutil import copyfile
+from cirpa.utils.shellhelper import execute, call_as_user
+
+parser = argparse.ArgumentParser(description='Characteristic test options')
+
+mandatoryArgs = parser.add_argument_group('Mandatory arguments')
+mandatoryArgs.add_argument('--pt-package', action="store", dest="ptPackage", required=True)
+mandatoryArgs.add_argument('--runtime-package', action="store", dest="runtimePackage", required=True)
+mandatoryArgs.add_argument('--test-package', action="store", dest="testPackage", required=True)
+mandatoryArgs.add_argument('--sut-ip', action="store", dest="sutIp", required=True, help='ip address for SUT')
+mandatoryArgs.add_argument('--suite', action="store", dest="suite", required=True)
+mandatoryArgs.add_argument('--execution-type', action="store", dest="executionType", choices=['stabilitytest', 'characteristicstest', 'characteristicsshorttest', 'loadtest'], required=True, help='type of testexecution')
+
+# Optional arguments
+parser.add_argument('--test-duration', action="store", dest="testDuration", default="60", help='for how long should the stability test run in hours -h')
+parser.add_argument('--cpuload', action="store", dest="cpuLoad", default="0")
+parser.add_argument('--memoryload', action="store", dest="memoryLoad", default="0")
+
+args = parser.parse_args()
+
+# extract the test package
+print(execute(["tar", "xf", args.testPackage]))
+
+for root, dir, files in os.walk('/src'):
+    if 'com-main' in dir:
+        repoSrc = root + '/com-main'
+        break
+
+command = [repoSrc + "/test/pt/remote_test_runner.py"]
+extraOptions = ["--cpuload", args.cpuLoad]
+extraOptions += ["--memoryload", args.memoryLoad]
+extraOptions += ["--report_doc_version", "default"]
+extraOptions += ["--address", args.sutIp]
+extraOptions += ["--builddir", "/"]
+extraOptions += ["--testtype", "testrunner"]
+extraOptions += ["--testexecution", args.executionType]
+extraOptions += ["--testfile", args.suite]
+extraOptions += ["--resultdir", "/opt/com/test/pt"]
+htmlDir = [repoSrc + "/test/pt/doc/html"]
+
+#create dist directory if it doesnot exists
+if not os.path.exists("/dist"):
+    os.makedirs("/dist")
+
+# copy the runtime package to builddir/dist
+copyfile("/" + args.runtimePackage, os.path.join("/dist", args.runtimePackage))
+copyfile("/" + args.ptPackage, os.path.join("/dist", args.ptPackage))
+
+rebootCommand = "/usr/src/scripts/utils/reboot_node"
+if args.executionType == 'stabilitytest':
+    extraOptions += ["--timestabilitytest", args.testDuration]
+    extraOptions += ["--reportsource", repoSrc + "/test/pt/doc/html/runStabilityTestSuite.sh.res.tar"]
+elif args.executionType == 'characteristicstest' or args.executionType == 'loadtest':
+    extraOptions += ["--reportsource", repoSrc + "/test/pt/doc/html/runBigSuite.sh.res.tar"]
+elif args.executionType == 'characteristicsshorttest':
+    extraOptions += ["--reportsource", repoSrc + "/test/pt/doc/html/runCharacteristicSuite.sh.res.tar"]
+
+if args.executionType != 'stabilitytest':
+    print(execute([rebootCommand, args.sutIp]))
+
+execute(["chmod", "-R", "757", "/src", "/build"])
+retval = call_as_user("comuser", command + extraOptions + htmlDir, True)
+
+sys.exit(retval)

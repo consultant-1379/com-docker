@@ -1,0 +1,92 @@
+csm-version: '1.0'
+
+systems:
+- uid: LDA.base
+  name: LDA.Basic
+  version: 1.0.0-1
+  product-number: CXPXXXX
+  functions:
+  - lde.base.internal
+  - lde.cba.if.base
+  - lde.os.tuning
+  - lde.pm
+  - lde.sharedfs.config
+  - lde.sles.jeos
+  - lde.tipc.config
+  - coremw.clmnodedetect
+  - coremw.core.base
+  - coremw.core.trace
+  - coremw.cr
+  - coremw.logm.framework
+  - coremw.pmrm
+  - coremw.swm
+  - coremw.swm.trace
+  - sec.certm
+  - sec.base
+  - sec.ldap
+  - sec.la.mip
+  - com.oam.base
+  - pmproducer.base
+  - telnet.base
+  - coremw.cbrf
+  - coremw.cbrfeia
+  - coremw.cbrfcmwa
+  - lde.brf
+  roles:
+  - role: FSs
+  - role: SCs
+    assigned-to:
+    - SC-1
+roles:
+- uid: SCs
+  name: SCs
+  services:
+  - lde.base.all
+  - lde.cba.if.all
+  - lde.os.tuning.all
+  - lde.pmcounters.all
+  - lde.sharedfs.config.all
+  - lde.sles.jeos.all
+  - lde.tipc.config.all
+  - coremw.core.aggregation
+  - coremw.core.all
+  - coremw.core.trace.aggregation
+  - coremw.swm.aggregation
+  - coremw.swm.all
+  - coremw.swm.trace.aggregation
+  - coremw.swm.trace.all
+  - coremw.pmrm.aggregation
+  - coremw.pmrm.all
+  - coremw.clmnodedetect.aggregation
+  - coremw.cr.all
+  - coremw.logm.aggregation
+  - coremw.logm.library
+  - sec.certm.aggregation
+  - sec.certm.agent.all
+  - sec.base.all
+  - sec.ldap.all
+  - sec.la.mip.aggregation
+  - sec.la.sm.all
+  - com.oam.access.aggregation
+  - pmproducer.all
+  - telnet.all
+  - coremw.cbrf.aggregation
+  - coremw.cbrfeia.aggregation
+  - coremw.cbrfcmwa.aggregation
+  - coremw.cbrf.all
+  - lde.brf.aggregation
+  scaling-policy:
+    scaling: 'NO'
+  constraints:
+    external: 'YES'
+- uid: FSs
+  name: FSs
+  description: 'Role: nfsserver'
+  services:
+  - lde.base.all
+  - lde.sharedfs.config.all
+  - lde.sles.jeos.all
+  scaling-policy:
+    scaling: 'no'
+  constraints:
+    external: 'yes'

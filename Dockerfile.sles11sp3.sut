@@ -1,0 +1,64 @@
+#FROM suse/sles11sp3:latest
+FROM armdocker.rnd.ericsson.se/baseimages/sles:11sp3
+
+ARG COMMIT=null
+ARG REPOSITORY=null
+
+LABEL commit=$COMMIT
+LABEL repository=$REPOSITORY
+
+# refresh the repository
+RUN zypper lr
+
+# install syslog daemon
+RUN zypper install -y rsyslog
+RUN /etc/init.d/syslog start
+
+# install ssh
+RUN zypper install -y openssh
+
+# install packages needed for ft to run
+RUN zypper install -y tar
+RUN zypper install -y openldap2
+RUN zypper install -y vsftpd
+RUN zypper install -y net-snmp
+RUN zypper install -y fuse
+RUN zypper install -y libfuse2
+RUN zypper install -y timezone
+
+# extra packages
+RUN zypper install -y vim
+
+# set the root password
+RUN echo "rootroot" | passwd root --stdin
+
+# create the comuser
+RUN useradd comuser
+RUN echo "comuser" | passwd comuser --stdin
+
+# generate the sshd keys
+RUN rcsshd start
+
+# copy the sshd_config file to the image
+COPY sles11sp3/sut/sshd_config /sshd_config
+
+# modify the /etc/sysconfig/openldap to start the ldap server as root
+RUN sed -i s/OPENLDAP_USER=\"ldap\"/OPENLDAP_USER=\"root\"/g /etc/sysconfig/openldap
+RUN sed -i s/OPENLDAP_GROUP=\"ldap\"/OPENLDAP_GROUP=\"root\"/g /etc/sysconfig/openldap
+RUN service ldap start
+
+# set correct timezone CET
+RUN rm -rf /etc/localtime && ln -s /usr/share/zoneinfo/CET /etc/localtime
+
+# expose the ports needed for running ft remote tests
+EXPOSE 22
+
+# netconf
+EXPOSE 830
+EXPOSE 9830
+
+# Netconf TLS Proxy Port:
+EXPOSE 6513
+
+# start the ssh daemon
+CMD ["/usr/sbin/sshd", "-D", "-f", "/sshd_config"]

@@ -1,0 +1,4 @@
+# These arguments are given to 'CodeChecker analyze'.
+# They can be used to enable or disable certain checkers or checker groups.
+# Format: -e|--enable|-d|--disable GROUP|CHECKER.
+local checker_flags=( "--enable" "cert" "--enable" "security" "--enable" "cplusplus.NewDelete" "--enable" "alpha.core.CallAndMessageUnInitRefArg" "--enable" "alpha.ericsson.cpp.ExceptionMisuse" "--enable" "alpha.security" "--enable" "alpha.unix" "--enable" "misc-unused-parameters" "--enable" "misc-unused-alias-decls" "--enable" "misc-unused-using-decls")

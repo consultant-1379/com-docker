@@ -1,0 +1,19 @@
+FROM armdockerhub.rnd.ericsson.se/ubuntu:16.04
+
+RUN apt-get update \
+    && apt-get install -y python-pip \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade pip
+
+COPY cirpa /cirpa
+
+COPY build-image/requirements.txt /
+
+RUN pip install -r requirements.txt
+
+COPY build-image/* /
+RUN ln -s /build.py /bin/build.py
+
+ENTRYPOINT [ "/entrypoint.sh" ]

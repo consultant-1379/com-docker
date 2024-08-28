@@ -1,0 +1,456 @@
+
+# ---- MHweb ---- #
+
+- name: git_collector_mhweb_commain
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-main"
+  id_pattern: "([H-L][A-Z]\\d{5,5})(?=.*Final)"
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  output_mapping:
+    id: "/id"
+    message: "/message"
+  operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+
+- name: git_collector_mhweb_comsa
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/comsa-source"
+  id_pattern: "([H-L][A-Z]\\d{5,5})(?=.*Final)"
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  output_mapping:
+    id: "/id"
+    message: "/message"
+  operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+
+- name: git_collector_mhweb_com-vsftpd
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-vsftpd"
+  id_pattern: "([H-L][A-Z]\\d{5,5})(?=.*Final)"
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  output_mapping:
+    id: "/id"
+    message: "/message"
+  operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+
+- name: mhweb_tr_collector
+  type: MhwebTrCollector
+  input_mapping:
+    - eriref: "/id"
+  output_mapping:
+    id: "/eriref"
+    summary: "/DescriptionSection/heading"
+    mhweb_link: "/collector_generated_fields/link"
+
+# ---- JIRA ---- #
+
+- name: git_collector_jira_commain
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-main"
+  id_pattern: ^\s*((?:AWM-)\s*([0-9]*)|(?:CBACI-)\s*([0-9]*)|(?:CLS-)\s*([0-9]*)|(?:CNTS-)\s*([0-9]*))\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: ${COMMITS}
+  arguments:
+    - COMMITS
+  output_mapping:
+    id: "/id"
+    commit: "/commit"
+    message: "/message"
+  operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+
+- name: git_collector_jira_comsa
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/comsa-source"
+  id_pattern: ^\s*((?:AWM-)\s*([0-9]*)|(?:CBACI-)\s*([0-9]*)|(?:CLS-)\s*([0-9]*)|(?:CNTS-)\s*([0-9]*))\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: ${COMMITS}
+  arguments:
+    - COMMITS
+  output_mapping:
+    id: "/id"
+    commit: "/commit"
+    message: "/message"
+  operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+
+- name: git_collector_jira_com-vsftpd
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-vsftpd"
+  id_pattern: ^\s*((?:AWM-)\s*([0-9]*)|(?:CBACI-)\s*([0-9]*)|(?:CLS-)\s*([0-9]*)|(?:CNTS-)\s*([0-9]*))\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: ${COMMITS}
+  arguments:
+    - COMMITS
+  output_mapping:
+    id: "/id"
+    commit: "/commit"
+    message: "/message"
+  operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+
+- name: jira_collector
+  type: JiraCollector
+  jira_url: "https://eteamproject.internal.ericsson.com/"
+  jql: "key = ${id}"
+  fields:
+    - Summary
+    - Status
+  input_mapping:
+    - id: "/id"
+    - apple:
+        - git_collector_jira_commain: "/id"
+        - git_collector_jira_comsa: "/id"
+        - git_collector_jira_com-vsftpd: "/id"
+  output_mapping:
+    id: "/key"
+    heading: "/Summary"
+    status: "/Status"
+    link: "/collector_generated_fields/link"
+
+# ---- FPT ---- #
+- name: git_collector_mr_commain
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-main"
+  id_pattern: ^\s*(?:FPTB)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "FPTB"
+
+- name: git_collector_fptmr_commain
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-main"
+  id_pattern: ^\s*(?:FPTB-MR)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "FPTB-MR"
+
+- name: git_collector_fpt_commain
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-main"
+  id_pattern: ^\s*(?:105 65-0334/)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "105 65-0334/"
+
+- name: git_collector_mr_comsa
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/comsa-source"
+  id_pattern: ^\s*(?:FPTB)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "FPTB"
+
+- name: git_collector_fptmr_comsa
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/comsa-source"
+  id_pattern: ^\s*(?:FPTB-MR)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "FPTB-MR"
+
+- name: git_collector_fpt_comsa
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/comsa-source"
+  id_pattern: ^\s*(?:105 65-0334/)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "105 65-0334/"
+
+- name: git_collector_mr_com-vsftpd
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-vsftpd"
+  id_pattern: ^\s*(?:FPTB)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "FPTB"
+
+- name: git_collector_fptmr_com-vsftpd
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-vsftpd"
+  id_pattern: ^\s*(?:FPTB-MR)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "FPTB-MR"
+
+- name: git_collector_fpt_com-vsftpd
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-vsftpd"
+  id_pattern: ^\s*(?:105 65-0334/)\s*([0-9]*)\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    mr:  "/id"
+    message: "/message"
+  operators:
+    - type: ContentModifierOperator
+      field: "/mr"
+      regex: "^"
+      replacement: "105 65-0334/"
+
+- name: fpt_collector
+  type: JiraCollector
+  jira_url: "https://eteamproject.internal.ericsson.com/"
+  jql: "project = CBA AND \"FPT ID\" ~ \"${id}\""
+  fields:
+    - Summary
+    - FPT ID
+    - FPT url
+  input_mapping:
+    - id: "/mr"
+    - apple:
+        - git_collector_mr_commain: "/mr"
+        - git_collector_mr_comsa: "/mr"
+        - git_collector_mr_com-vsftpd: "/mr"
+        - git_collector_fptmr_commain: "/mr"
+        - git_collector_fptmr_comsa: "/mr"
+        - git_collector_fptmr_com-vsftpd: "/mr"
+        - git_collector_fpt_commain: "/mr"
+        - git_collector_fpt_comsa: "/mr"
+        - git_collector_fpt_com-vsftpd: "/mr"
+  output_mapping:
+    id: "/key"
+    heading: "/Summary"
+    status: "/FPT ID"
+    link: "/FPT url"
+
+# ---- CBANBC ---- #
+
+- name: git_collector_nbc_commain
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-main"
+  id_pattern: ^\s*((?:CBANBC-)\s*([0-9]*))\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    message: "/message"
+
+- name: git_collector_nbc_comsa
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/comsa-source"
+  id_pattern: ^\s*((?:CBANBC-)\s*([0-9]*))\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    message: "/message"
+
+- name: git_collector_nbc_com-vsftpd
+  type: GitCollector
+  repository: "https://gerrit.ericsson.se/a/plugins/gitiles/CBA/com-vsftpd"
+  id_pattern: ^\s*((?:CBANBC-)\s*([0-9]*))\s*\[(FINAL|Final|final)\].*?$
+  revert_pattern: "^Revert\\s*(.+?)\\s*($)"
+  log_selector: "${COMMITS}"
+  arguments:
+    - COMMITS
+  pre_mapping_operators:
+    - type: DuplicateRemoverOperator
+      field: "/id"
+  output_mapping:
+    id:  "/id"
+    message: "/message"
+
+- name: jira_collector_nbc
+  type: JiraCollector
+  jira_url: "https://eteamproject.internal.ericsson.com/"
+  jql: "key = ${id}"
+  fields:
+    - Summary
+    - Status
+    - Reference Id
+    - Issue Type
+  input_mapping:
+    - id: "/id"
+    - apple:
+        - git_collector_nbc_commain: "/id"
+        - git_collector_nbc_comsa: "/id"
+        - git_collector_nbc_com-vsftpd: "/id"
+  output_mapping:
+    id: "/key"
+    heading: "/Summary"
+    status: "/Status"
+    ref: "/Reference Id"
+    type: "/Issue Type"
+    link: "/collector_generated_fields/link"
+
+- name: json_import_previous_releases
+  type: JsonImportCollector
+  json_path: "/pet2-1.3.0/previous_releases.json"
+  output_mapping:
+    "mhweb_tr_collector": "/mhweb_tr_collector"
+    "jira_collector": "/jira_collector"
+    "fpt_collector": "/fpt_collector"
+    "jira_collector_nbc": "/jira_collector_nbc"
+    "arguments":
+
+- name: accumulative_collector
+  type: AccumulativeCollector
+  old: json_import_previous_releases
+  new_fields:
+    - mhweb_tr_collector
+    - jira_collector
+    - fpt_collector
+    - jira_collector_nbc
+  arguments:
+    - VERSION
+  output_mapping:
+    "mhweb_tr_collector": "/mhweb_tr_collector"
+    "jira_collector": "/jira_collector"
+    "fpt_collector": "/fpt_collector"
+    "jira_collector_nbc": "/jira_collector_nbc"
+    "arguments":
+
+- name: json_generator_save_releases
+  type: JsonGenerator
+  output_path: "/pet2-1.3.0/previous_releases.json"
+  as_json_array: true
+  pretty_print: true
+
+- name: deliverables_collector
+  type: JsonImportCollector
+  json_path: /pet2-1.3.0/deliverables_collector.json
+  output_mapping:
+    product: /product
+    link: /link
+
+- name: html_generator
+  type: HtmlGenerator
+  template_path: "/pet2-1.3.0/template.html"
+  output_path: "/pet2-1.3.0/release_note.html"

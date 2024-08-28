@@ -1,0 +1,55 @@
+#!/bin/bash
+
+AUTHENTICATION_USER=cbacomci
+BUILD=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.${COMPONENT_PARENT_NAME}/${COMPONENT_PARENT_NAME}/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*')
+REPO_NAME="proj-cba-dev-local/com/ericsson/cba"
+
+configuration_file="parameters.sh"
+
+if [ ! -z "$componentList" ]; then
+    read -a COMPONENTLIST <<< $componentList
+else
+    read -a COMPONENTLIST <<< "com_x86_64_Deployment com_x86_64_Runtime com_x86_64_Spi com_x86_64_Api com_x86_64_oammodels com_src com_yocto comsa_src comsa_yocto comea_src comvsftpd_src"
+fi
+
+echo "Components selected to upload:"
+for SUBCOMPONENT_NAME in "${COMPONENTLIST[@]}"
+do
+    echo "$SUBCOMPONENT_NAME"
+    export AUTHENTICATION_USER=$AUTHENTICATION_USER
+    echo -e 'Doc Title \t\t\t\t\t\tDoc Number\t\tRevision\tChecksum' >> report.txt
+
+    SUBCOMPONENT=$(echo "$SUBCOMPONENT_NAME" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+    PACKAGE_TYPE=$(cat $configuration_file | grep ${SUBCOMPONENT}_PACKAGE_TYPE | cut -d '=' -f2)
+    CXP_NUMBER=$(cat $configuration_file | grep ${SUBCOMPONENT}_CXP_NUMBER | cut -d '=' -f2)
+    DOCUMENT_NUMBER=$(cat $configuration_file | grep ${SUBCOMPONENT}_DOCUMENT_NUMBER | cut -d '=' -f2)
+    COMPONENT_PARENT_NAME="com"
+
+    if [ $SUBCOMPONENT_NAME == "comea_src" ]; then
+        SUBCOMPONENT_NAME="com-comea"
+    fi
+
+    if [[ $SUBCOMPONENT_NAME == "comsa_src" || $SUBCOMPONENT_NAME == "comsa_yocto" ]]; then
+        SUBCOMPONENT_NAME="com-comsa"
+    fi
+
+    if [[ $SUBCOMPONENT_NAME == "com_src" || $SUBCOMPONENT_NAME == "com_yocto" ]]; then
+        SUBCOMPONENT_NAME="com"
+    fi
+
+    if [ $SUBCOMPONENT_NAME == "comvsftpd_src" ]; then
+        SUBCOMPONENT_NAME="com-vsftpd"
+    fi
+
+    if [[ $SUBCOMPONENT_NAME == "com_x86_64_Deployment"  || $SUBCOMPONENT_NAME == "com_x86_64_Runtime" || $SUBCOMPONENT_NAME == "com_x86_64_Spi" || $SUBCOMPONENT_NAME == "com_x86_64_Api" || $SUBCOMPONENT_NAME == "com_x86_64_oammodels" ]]; then
+        COMPONENT_PARENT_NAME="com_x86_64"
+        SUBCOMPONENT_NAME="com_x86_64"
+    fi
+
+    BUILD=$(curl -s "https://x-ci.rnd.ki.sw.ericsson.se/xci/md2/builds/com.ericsson.cba.${COMPONENT_PARENT_NAME}/${COMPONENT_PARENT_NAME}/latest?confidenceLevels=%5BcbaBaselineFunctionality=SUCCESS%5D" | grep -oP 'version\":"\K[^"]*')
+    DOCUMENT_TITLE=$SUBCOMPONENT_NAME-$BUILD-$PACKAGE_TYPE-$CXP_NUMBER
+    ARTIFACT_PATH=$REPO_NAME"/"$COMPONENT_PARENT_NAME"/"$SUBCOMPONENT_NAME"/"${BUILD}"/"${DOCUMENT_TITLE}".tar.gz"
+    echo "./fileUploadHelper.bash ${BUILD} ${DOCUMENT_TITLE} ${DOCUMENT_NUMBER} ${ARTIFACT_PATH} ${CXP_NUMBER}"
+    ./fileUploadHelper.bash ${BUILD} ${DOCUMENT_TITLE} ${DOCUMENT_NUMBER} ${ARTIFACT_PATH} ${CXP_NUMBER}
+
+done
